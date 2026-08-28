@@ -87,7 +87,7 @@ GRUPOS_56 = {
     'GRUPO 40': [1, 2, 5, 6, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
     'GRUPO 41': [1, 3, 4, 6, 7, 8, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
     'GRUPO 42': [1, 3, 5, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUpo 43': [1, 3, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 43': [1, 3, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
     'GRUPO 44': [1, 4, 5, 6, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
     'GRUPO 45': [1, 4, 5, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
     'GRUPO 46': [1, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
@@ -130,12 +130,11 @@ def calcular_atrasos(resultados_25):
     return dezenas_ordenadas, atrasos
 
 # -----------------------------------------------------------------------------
-# VALIDAÇÃO FLEXÍVEL COM DEZENAS FIXAS OBRIGATÓRIAS
+# VALIDAÇÃO FLEXÍVEL CORRIGIDA
 # -----------------------------------------------------------------------------
-def validar_jogo_flexivel(comb, prev_draw, set_grupo, dezenas_obrigatorias_set, 
+def validar_jogo_flexivel(comb, prev_draw, 
                           usar_soma, usar_repetidas, usar_moldura, usar_primos, 
-                          usar_mestras, usar_impares, usar_sequencia, usar_obrig, 
-                          usar_fixas, dezenas_fixas_set, min_aprovacoes):
+                          usar_mestras, usar_impares, usar_sequencia, min_aprovacoes):
     acertos = 0
     j_set = set(comb)
     
@@ -167,17 +166,6 @@ def validar_jogo_flexivel(comb, prev_draw, set_grupo, dezenas_obrigatorias_set,
     if usar_sequencia and (seq_max(comb) in [3, 4, 5, 6, 7]):
         acertos += 1
 
-    # 8. Dezenas Obrigatórias do Grupo
-    if usar_obrig:
-        obrig = dezenas_obrigatorias_set.intersection(set_grupo)
-        if not obrig or obrig.issubset(j_set):
-            acertos += 1
-
-    # 9. NOVA REGRA: Dezenas Fixas Absolutas (Obrigatórias em 100% dos jogos)
-    if usar_fixas:
-        if dezenas_fixas_set.issubset(j_set):
-            acertos += 1
-
     return acertos >= min_aprovacoes
 
 # -----------------------------------------------------------------------------
@@ -189,14 +177,12 @@ if uploaded_file is not None:
     df = pd.read_excel(uploaded_file, sheet_name='LOTOFÁCIL')
     col_bolas = [f'Bola{i}' for i in range(1, 16)]
 
-    # Identifica o último concurso e informações da planilha
     last_contest_row = df.iloc[-1]
     last_contest_num = int(last_contest_row.iloc[0]) if 'Concurso' in df.columns or len(df.columns) > 0 else len(df)
     
     st.info(f"📊 **Status da Planilha:** Último concurso registrado na base: **Concurso {last_contest_num}**. Análise calibrada usando os últimos 25 concursos do arquivo.")
 
-    # Configuração da Barra Lateral para controle dos filtros e flexibilidade
-    st.sidebar.header("⚙️ Configuração de Filtros")
+    st.sidebar.header("⚙️ Configuração de Filtros Estatísticos")
     st.sidebar.write("Ative os filtros desejados e defina o rigor:")
     
     usar_soma = st.sidebar.checkbox("Filtro de Soma (160 - 220)", value=True)
@@ -206,26 +192,22 @@ if uploaded_file is not None:
     usar_mestras = st.sidebar.checkbox("Filtro de Mestras (5 a 8)", value=True)
     usar_impares = st.sidebar.checkbox("Filtro de Ímpares (6 a 9)", value=True)
     usar_sequencia = st.sidebar.checkbox("Filtro de Sequência Máx (3 a 7)", value=True)
-    usar_obrig = st.sidebar.checkbox("Respeitar Dezenas Obrigatórias (do grupo)", value=True)
     
-    # NOVOS CONTROLES NA BARRA LATERAL PARA DEZENAS FIXAS
     st.sidebar.markdown("---")
     usar_fixas = st.sidebar.checkbox("🔒 Ativar Dezenas Fixas (Obrigatórias em todos os jogos)", value=False)
     
     dezenas_fixas_selecionadas = []
     if usar_fixas:
         dezenas_fixas_selecionadas = st.sidebar.multiselect(
-            "Selecione 1 ou 2 dezenas fixas (1 a 25):",
+            "Selecione 1 ou 2 dezenas fixas absolutas (1 a 25):",
             options=list(range(1, 26)),
             max_selections=2,
             default=[]
         )
 
-    # Ajuste dinâmico do slider com base na quantidade de filtros ativos (agora até 9)
-    total_filtros_possiveis = 8 + (1 if usar_fixas else 0)
-    min_aprovacoes = st.sidebar.slider("Mínimo de regras atendidas por jogo:", min_value=1, max_value=max(1, total_filtros_possiveis), value=min(7, total_filtros_possiveis))
+    total_filtros_possiveis = 7
+    min_aprovacoes = st.sidebar.slider("Mínimo de regras estatísticas atendidas:", min_value=1, max_value=total_filtros_possiveis, value=5)
 
-    # Extrai os últimos 25 concursos reais direto da planilha carregada
     last_25_df = df.iloc[-25:].iloc[::-1] 
     ultimos_25_concursos = []
     for _, row in last_25_df.iterrows():
@@ -234,16 +216,16 @@ if uploaded_file is not None:
 
     dezenas_mais_atrasadas, mapa_atrasos = calcular_atrasos(ultimos_25_concursos)
 
-    st.subheader("Filtro: Dezenas Obrigatórias")
+    st.subheader("Filtro: Dezenas Obrigatórias (Devem estar em 100% dos jogos)")
     modo_selecao = st.radio(
-        "Como deseja escolher a dezena obrigatória?",
+        "Como deseja escolher as dezenas obrigatórias?",
         ["Escolher manualmente", "Sugestão por atraso (últimos 25 concursos da planilha)"],
         horizontal=True
     )
 
     if modo_selecao == "Escolher manualmente":
         dezenas_selecionadas = st.multiselect(
-            "Selecione a(s) dezena(s) obrigatória(s):",
+            "Selecione a(s) dezena(s) que DEVE(M) obrigatoriamente estar em todos os jogos gerados:",
             options=list(range(1, 26)),
             default=[]
         )
@@ -258,20 +240,26 @@ if uploaded_file is not None:
         
         dezenas_selecionadas = [int(item.split()[1]) for item in selecao_formatada]
 
-    st.write(f"Dezenas selecionadas para o gerador: **{dezenas_selecionadas}**")
+    st.write(f"Dezenas Obrigatórias selecionadas: **{dezenas_selecionadas}**")
     if usar_fixas and dezenas_fixas_selecionadas:
-        st.write(f"🔒 **Dezenas Fixas Obrigatórias em 100% dos jogos:** {dezenas_fixas_selecionadas}")
+        st.write(f"🔒 **Dezenas Fixas Extras:** {dezenas_fixas_selecionadas}")
 
     dezenas_obrigatorias_set = set(dezenas_selecionadas)
-    dezenas_fixas_set = set(dezenas_fixas_selecionadas)
+    dezenas_fixas_set = set(dezenas_fixas_selecionadas) if usar_fixas else set()
+    
+    # Junta todas as dezenas que são obrigatórias/fixas de forma absoluta
+    todas_obrigatorias_absolutas = dezenas_obrigatorias_set.union(dezenas_fixas_set)
 
     if st.button("Gerar Palpites"):
-        # Validação extra para garantir que se a regra de fixas estiver ativa, o usuário escolheu as dezenas
-        if usar_fixas and not dezenas_fixas_selecionadas:
-            st.error("⚠️ Você ativou a regra de 'Dezenas Fixas', mas não selecionou nenhuma dezena na barra lateral!")
+        # Validação preventiva
+        if len(todas_obrigatorias_absolutas) > 15:
+            st.error(f"⚠️ Você selecionou {len(todas_obrigatorias_absolutas)} dezenas obrigatórias/fixas no total, mas um jogo da Lotofácil tem no máximo 15 dezenas! Reduza a quantidade.")
+        elif usar_fixas and not dezenas_fixas_selecionadas:
+            st.error("⚠️ Você ativou a opção de Dezenas Fixas na barra lateral, mas não selecionou nenhuma!")
         else:
             prev_draw = set(last_contest_row[col_bolas].astype(int).values)
 
+            # 1. Avalia os Top 5 Grupos baseados nos últimos 25 concursos
             scores = {}
             last_25_score_df = df.iloc[-25:]
             for g_name, nums in GRUPOS_56.items():
@@ -291,33 +279,66 @@ if uploaded_file is not None:
             top_5_names = [g[0] for g in top_5_groups]
 
             jogos_gerados = []
+            
+            # 2. Gera as combinações dentro dos melhores grupos garantindo as regras obrigatórias na raiz
             for g_name in top_5_names:
                 nums = GRUPOS_56[g_name]
                 set_g = set(nums)
-                sorted_g = sorted(nums)
-                validos = [c for c in itertools.combinations(sorted_g, 15) if validar_jogo_flexivel(
-                    c, prev_draw, set_g, dezenas_obrigatorias_set, 
-                    usar_soma, usar_repetidas, usar_moldura, usar_primos, 
-                    usar_mestras, usar_impares, usar_sequencia, usar_obrig, 
-                    usar_fixas, dezenas_fixas_set, min_aprovacoes
-                )]
-                if validos:
-                    jogos_gerados.extend(random.sample(validos, min(len(validos), 4)))
+                
+                # VERIFICAÇÃO DE SEGURANÇA: As dezenas obrigatórias precisam pertencer aos 20 números do grupo
+                if not todas_obrigatorias_absolutas.issubset(set_g):
+                    # Se o grupo não contiver todas as dezenas obrigatórias escolhidas, ele pula este grupo para evitar jogos vazios
+                    continue
 
-            st.success(f"Grupos Quentes identificados na planilha: {', '.join(top_5_names)}")
+                # Remove as obrigatórias da lista de escolha e calcula quantas faltam para completar 15
+                dezenas_disponiveis = sorted(list(set_g - todas_obrigatorias_absolutas))
+                vagas_restantes = 15 - len(todas_obrigatorias_absolutas)
+                
+                if vagas_restantes < 0:
+                    continue
 
-            conteudo_txt = f"=== PALPITES CONCURSO {last_contest_num + 1} ===\n\n"
-            for idx, jogo in enumerate(jogos_gerados, 1):
-                jogo_str = " ".join([f"{x:02d}" for x in jogo])
-                conteudo_txt += f"Jogo {idx:02d}: {jogo_str}\n"
+                # Cria combinações apenas com as vagas restantes somadas às dezenas obrigatórias fixas
+                for comb_parcial in itertools.combinations(dezenas_disponiveis, vagas_restantes):
+                    jogo_completo = sorted(list(comb_parcial) + list(todas_obrigatorias_absolutas))
+                    
+                    # Valida se o jogo atende aos filtros estatísticos selecionados no slider
+                    if validar_jogo_flexivel(
+                        jogo_completo, prev_draw, 
+                        usar_soma, usar_repetidas, usar_moldura, usar_primos, 
+                        usar_mestras, usar_impares, usar_sequencia, min_aprovacoes
+                    ):
+                        jogos_gerados.append(jogo_completo)
 
-            st.text_area("Jogos Gerados:", conteudo_txt, height=300)
+            # Remove duplicadas caso apareçam em grupos diferentes
+            jogos_unicos = []
+            vistos = set()
+            for j in jogos_gerados:
+                t = tuple(j)
+                if t not in vistos:
+                    vistos.add(t)
+                    jogos_unicos.append(j)
 
-            st.download_button(
-                label="Baixar TXT dos Jogos",
-                data=conteudo_txt,
-                file_name=f"palpites_concurso_{last_contest_num + 1}.txt",
-                mime="text/plain"
-            )
+            if jogos_unicos:
+                # Seleciona até 20 jogos aleatórios dos válidos encontrados
+                amostra_jogos = random.sample(jogos_unicos, min(len(jogos_unicos), 20))
+                
+                st.success(f"Grupos Quentes identificados na planilha: {', '.join(top_5_names)}")
+                st.write(f"Total de jogos válidos encontrados respeitando suas dezenas obrigatórias: **{len(jogos_unicos)}**")
+
+                conteudo_txt = f"=== PALPITES CONCURSO {last_contest_num + 1} ===\n\n"
+                for idx, jogo in enumerate(amostra_jogos, 1):
+                    jogo_str = " ".join([f"{x:02d}" for x in jogo])
+                    conteudo_txt += f"Jogo {idx:02d}: {jogo_str}\n"
+
+                st.text_area("Jogos Gerados:", conteudo_txt, height=300)
+
+                st.download_button(
+                    label="Baixar TXT dos Jogos",
+                    data=conteudo_txt,
+                    file_name=f"palpites_concurso_{last_contest_num + 1}.txt",
+                    mime="text/plain"
+                )
+            else:
+                st.error("⚠️ Nenhum jogo foi gerado. Isso ocorre porque a quantidade de dezenas obrigatórias/fixas selecionadas é muito alta ou restritiva demais para os Top 5 Grupos estatísticos atuais. Tente desmarcar algumas dezenas ou flexibilizar os filtros.")
 else:
     st.warning("⚠️ Por favor, faça o upload da sua planilha Excel (.xlsx) da Lotofácil para habilitar a geração de palpites e o cálculo estatístico.")
