@@ -129,21 +129,53 @@ def calcular_atrasos(resultados_25):
     dezenas_ordenadas = sorted(atrasos.keys(), key=lambda d: atrasos[d], reverse=True)
     return dezenas_ordenadas, atrasos
 
-def validar_jogo(comb, prev_draw, set_grupo, dezenas_obrigatorias_set):
-    if not (160 <= sum(comb) <= 220): return False
+# -----------------------------------------------------------------------------
+# VALIDAÇÃO FLEXÍVEL (MANTÉM OS FILTROS ORIGINAIS + FLEXIBILIDADE)
+# -----------------------------------------------------------------------------
+def validar_jogo_flexivel(comb, prev_draw, set_grupo, dezenas_obrigatorias_set, 
+                          usar_soma, usar_repetidas, usar_moldura, usar_primos, 
+                          usar_mestras, usar_impares, usar_sequencia, usar_obrig, min_aprovacoes):
+    acertos = 0
     j_set = set(comb)
-    obrig = dezenas_obrigatorias_set.intersection(set_grupo)
-    if obrig and not obrig.issubset(j_set): return False
-    if len(j_set.intersection(prev_draw)) not in [8, 9, 10, 11]: return False
-    if len(j_set.intersection(MOLDURA)) not in [8, 9, 10, 11]: return False
-    if len(j_set.intersection(PRIMOS)) not in [4, 5, 6, 7]: return False
-    if len(j_set.intersection(MESTRAS)) not in [5, 6, 7, 8]: return False
-    if sum(1 for x in comb if x % 2 != 0) not in [6, 7, 8, 9]: return False
-    if seq_max(comb) not in [3, 4, 5, 6, 7]: return False
-    return True
+    
+    # 1. Soma
+    if usar_soma and (160 <= sum(comb) <= 220):
+        acertos += 1
+        
+    # 2. Repetidas
+    if usar_repetidas and (len(j_set.intersection(prev_draw)) in [8, 9, 10, 11]):
+        acertos += 1
+        
+    # 3. Moldura
+    if usar_moldura and (len(j_set.intersection(MOLDURA)) in [8, 9, 10, 11]):
+        acertos += 1
+        
+    # 4. Primos
+    if usar_primos and (len(j_set.intersection(PRIMOS)) in [4, 5, 6, 7]):
+        acertos += 1
+        
+    # 5. Mestras
+    if usar_mestras and (len(j_set.intersection(MESTRAS)) in [5, 6, 7, 8]):
+        acertos += 1
+        
+    # 6. Ímpares
+    if usar_impares and (sum(1 for x in comb if x % 2 != 0) in [6, 7, 8, 9]):
+        acertos += 1
+        
+    # 7. Sequência Máxima
+    if usar_sequencia and (seq_max(comb) in [3, 4, 5, 6, 7]):
+        acertos += 1
+
+    # 8. Dezenas Obrigatórias
+    if usar_obrig:
+        obrig = dezenas_obrigatorias_set.intersection(set_grupo)
+        if not obrig or obrig.issubset(j_set):
+            acertos += 1
+
+    return acertos >= min_aprovacoes
 
 # -----------------------------------------------------------------------------
-# UPLOAD DA PLANILHA
+# UPLOAD DA PLANILHA E BARRA LATERAL
 # -----------------------------------------------------------------------------
 uploaded_file = st.file_uploader("📂 Faça o upload da planilha Excel atualizada (.xlsx)", type=["xlsx"])
 
@@ -155,17 +187,30 @@ if uploaded_file is not None:
     last_contest_row = df.iloc[-1]
     last_contest_num = int(last_contest_row.iloc[0]) if 'Concurso' in df.columns or len(df.columns) > 0 else len(df)
     
-    # Exibe a mensagem de status com a última atualização / concurso registrado
     st.info(f"📊 **Status da Planilha:** Último concurso registrado na base: **Concurso {last_contest_num}**. Análise calibrada usando os últimos 25 concursos do arquivo.")
 
-    # Extrai os últimos 25 concursos reais direto da planilha carregada (do mais recente para o mais antigo)
-    last_25_df = df.iloc[-25:].iloc[::-1]  # Inverte para que o mais recente fique no topo para a contagem de atraso
+    # Configuração da Barra Lateral para controle dos filtros e flexibilidade
+    st.sidebar.header("⚙️ Configuração de Filtros")
+    st.sidebar.write("Ative os filtros desejados e defina o rigor:")
+    
+    usar_soma = st.sidebar.checkbox("Filtro de Soma (160 - 220)", value=True)
+    usar_repetidas = st.sidebar.checkbox("Filtro de Repetidas (8 a 11)", value=True)
+    usar_moldura = st.sidebar.checkbox("Filtro de Moldura (8 a 11)", value=True)
+    usar_primos = st.sidebar.checkbox("Filtro de Primos (4 a 7)", value=True)
+    usar_mestras = st.sidebar.checkbox("Filtro de Mestras (5 a 8)", value=True)
+    usar_impares = st.sidebar.checkbox("Filtro de Ímpares (6 a 9)", value=True)
+    usar_sequencia = st.sidebar.checkbox("Filtro de Sequência Máx (3 a 7)", value=True)
+    usar_obrig = st.sidebar.checkbox("Respeitar Dezenas Obrigatórias", value=True)
+
+    min_aprovacoes = st.sidebar.slider("Mínimo de regras atendidas por jogo:", min_value=1, max_value=8, value=7)
+
+    # Extrai os últimos 25 concursos reais direto da planilha carregada
+    last_25_df = df.iloc[-25:].iloc[::-1] 
     ultimos_25_concursos = []
     for _, row in last_25_df.iterrows():
         concurso_lista = row[col_bolas].astype(int).tolist()
         ultimos_25_concursos.append(concurso_lista)
 
-    # Calcula os atrasos dinamicamente baseados nos últimos 25 concursos reais da planilha
     dezenas_mais_atrasadas, mapa_atrasos = calcular_atrasos(ultimos_25_concursos)
 
     st.subheader("Filtro: Dezenas Obrigatórias")
@@ -187,7 +232,7 @@ if uploaded_file is not None:
         selecao_formatada = st.multiselect(
             "Dezenas ordenadas pelo maior atraso:",
             options=opcoes_formatadas,
-            default=opcoes_formatadas[:2] # Sugere as 2 mais atrasadas por padrão
+            default=opcoes_formatadas[:2]
         )
         
         dezenas_selecionadas = [int(item.split()[1]) for item in selecao_formatada]
@@ -199,7 +244,6 @@ if uploaded_file is not None:
         prev_draw = set(last_contest_row[col_bolas].astype(int).values)
 
         scores = {}
-        # Recalibra os grupos com base estritamente nos últimos 25 concursos da planilha
         last_25_score_df = df.iloc[-25:]
         for g_name, nums in GRUPOS_56.items():
             set_g = set(nums)
@@ -222,13 +266,16 @@ if uploaded_file is not None:
             nums = GRUPOS_56[g_name]
             set_g = set(nums)
             sorted_g = sorted(nums)
-            validos = [c for c in itertools.combinations(sorted_g, 15) if validar_jogo(c, prev_draw, set_g, dezenas_obrigatorias_set)]
+            validos = [c for c in itertools.combinations(sorted_g, 15) if validar_jogo_flexivel(
+                c, prev_draw, set_g, dezenas_obrigatorias_set, 
+                usar_soma, usar_repetidas, usar_moldura, usar_primos, 
+                usar_mestras, usar_impares, usar_sequencia, usar_obrig, min_aprovacoes
+            )]
             if validos:
                 jogos_gerados.extend(random.sample(validos, min(len(validos), 4)))
 
         st.success(f"Grupos Quentes identificados na planilha: {', '.join(top_5_names)}")
 
-        # Exibe os jogos na tela
         conteudo_txt = f"=== PALPITES CONCURSO {last_contest_num + 1} ===\n\n"
         for idx, jogo in enumerate(jogos_gerados, 1):
             jogo_str = " ".join([f"{x:02d}" for x in jogo])
@@ -236,7 +283,6 @@ if uploaded_file is not None:
 
         st.text_area("Jogos Gerados:", conteudo_txt, height=300)
 
-        # Botão para download do .txt
         st.download_button(
             label="Baixar TXT dos Jogos",
             data=conteudo_txt,
