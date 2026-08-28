@@ -5,7 +5,7 @@ import itertools
 from datetime import datetime
 import random
 
-# Configuração da página web (layout wide para acomodar melhor os painéis)
+# Configuração da página web
 st.set_page_config(page_title="Gerador Lotofácil", page_icon="🎲", layout="wide")
 
 # -----------------------------------------------------------------------------
@@ -38,10 +38,10 @@ if not verificar_senha():
     st.stop()
 
 # -----------------------------------------------------------------------------
-# TÍTULO E INTRODUÇÃO
+# TÍTULO E INTERFACE PRINCIPAL
 # -----------------------------------------------------------------------------
 st.title("🎲 Gerador Otimizado Lotofácil")
-st.write("Faça o upload da planilha atualizada para recalibrar os grupos estatísticos e gerar os bilhetes.")
+st.write("Faça o upload da planilha atualizada para recalibrar os grupos estatísticos com base nos últimos 25 concursos reais.")
 
 # Constantes e Grupos Originais
 GRUPOS_56 = {
@@ -142,38 +142,47 @@ def validar_jogo(comb, prev_draw, set_grupo, dezenas_obrigatorias_set):
     if seq_max(comb) not in [3, 4, 5, 6, 7]: return False
     return True
 
-# Interface Web Streamlit - Upload de Arquivo
-uploaded_file = st.file_uploader("Selecione a planilha Excel (.xlsx)", type=["xlsx"])
+# -----------------------------------------------------------------------------
+# UPLOAD DA PLANILHA
+# -----------------------------------------------------------------------------
+uploaded_file = st.file_uploader("📂 Faça o upload da planilha Excel atualizada (.xlsx)", type=["xlsx"])
 
 if uploaded_file is not None:
     df = pd.read_excel(uploaded_file, sheet_name='LOTOFÁCIL')
     col_bolas = [f'Bola{i}' for i in range(1, 16)]
 
-    # Extrai os últimos 25 concursos reais direto da planilha carregada
-    last_25_df = df.iloc[-25:]
+    # Identifica o último concurso e informações da planilha
+    last_contest_row = df.iloc[-1]
+    last_contest_num = int(last_contest_row.iloc[0]) if 'Concurso' in df.columns or len(df.columns) > 0 else len(df)
+    
+    # Exibe a mensagem de status com a última atualização / concurso registrado
+    st.info(f"📊 **Status da Planilha:** Último concurso registrado na base: **Concurso {last_contest_num}**. Análise calibrada usando os últimos 25 concursos do arquivo.")
+
+    # Extrai os últimos 25 concursos reais direto da planilha carregada (do mais recente para o mais antigo)
+    last_25_df = df.iloc[-25:].iloc[::-1]  # Inverte para que o mais recente fique no topo para a contagem de atraso
     ultimos_25_concursos = []
     for _, row in last_25_df.iterrows():
         concurso_lista = row[col_bolas].astype(int).tolist()
         ultimos_25_concursos.append(concurso_lista)
 
-    # Calcula os atrasos dinamicamente baseados na planilha
+    # Calcula os atrasos dinamicamente baseados nos últimos 25 concursos reais da planilha
     dezenas_mais_atrasadas, mapa_atrasos = calcular_atrasos(ultimos_25_concursos)
 
     st.subheader("Filtro: Dezenas Obrigatórias")
     modo_selecao = st.radio(
         "Como deseja escolher a dezena obrigatória?",
-        ["Escolher manualmente", "Sugestão por atraso (últimos 25 concursos)"],
+        ["Escolher manualmente", "Sugestão por atraso (últimos 25 concursos da planilha)"],
         horizontal=True
     )
 
     if modo_selecao == "Escolher manualmente":
         dezenas_selecionadas = st.multiselect(
-            "Selecione a(s) dezena(s) obrigatoria(s):",
+            "Selecione a(s) dezena(s) obrigatória(s):",
             options=list(range(1, 26)),
             default=[]
         )
     else:
-        opcoes_formatadas = [f"Dezena {d} ({mapa_atrasos[d]} concursos sem sair)" for d in dezenas_mais_atrasadas]
+        opcoes_formatadas = [f"Dezena {d} ({mapa_atrasos[d]} concursos sem sair nos últimos 25)" for d in dezenas_mais_atrasadas]
         
         selecao_formatada = st.multiselect(
             "Dezenas ordenadas pelo maior atraso:",
@@ -187,15 +196,15 @@ if uploaded_file is not None:
     dezenas_obrigatorias_set = set(dezenas_selecionadas)
 
     if st.button("Gerar Palpites"):
-        last_contest_row = df.iloc[-1]
-        last_contest_num = int(last_contest_row.iloc[0]) if 'Concurso' in df.columns else len(df)
         prev_draw = set(last_contest_row[col_bolas].astype(int).values)
 
         scores = {}
+        # Recalibra os grupos com base estritamente nos últimos 25 concursos da planilha
+        last_25_score_df = df.iloc[-25:]
         for g_name, nums in GRUPOS_56.items():
             set_g = set(nums)
             c_14_15, c_13, total_hits = 0, 0, 0
-            for _, row in last_25_df.iterrows():
+            for _, row in last_25_score_df.iterrows():
                 draw = set(row[col_bolas].astype(int).values)
                 hits = len(set_g.intersection(draw))
                 total_hits += hits
@@ -217,7 +226,7 @@ if uploaded_file is not None:
             if validos:
                 jogos_gerados.extend(random.sample(validos, min(len(validos), 4)))
 
-        st.success(f"Grupos Quentes: {', '.join(top_5_names)}")
+        st.success(f"Grupos Quentes identificados na planilha: {', '.join(top_5_names)}")
 
         # Exibe os jogos na tela
         conteudo_txt = f"=== PALPITES CONCURSO {last_contest_num + 1} ===\n\n"
@@ -234,3 +243,5 @@ if uploaded_file is not None:
             file_name=f"palpites_concurso_{last_contest_num + 1}.txt",
             mime="text/plain"
         )
+else:
+    st.warning("⚠️ Por favor, faça o upload da sua planilha Excel (.xlsx) da Lotofácil para habilitar a geração de palpites e o cálculo estatístico.")
