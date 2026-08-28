@@ -2,13 +2,41 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import itertools
+from datetime import datetime
 import random
 
 # Configuração da página web
-st.set_page_config(page_title="Gerador Lotofácil Otimizado", page_icon="🎲", layout="wide")
+st.set_page_config(page_title="Gerador Lotofácil", page_icon="🎲", layout="wide")
 
-st.title("🎲 Gerador Otimizado Lotofácil")
-st.write("Faça o upload da planilha atualizada, ajuste os filtros na barra lateral e gere os palpites otimizados.")
+# -----------------------------------------------------------------------------
+# AUTENTICAÇÃO / TELA DE LOGIN
+# -----------------------------------------------------------------------------
+def verificar_senha():
+    if "autenticado" not in st.session_state:
+        st.session_state.autenticado = False
+
+    if st.session_state.autenticado:
+        return True
+
+    st.title("🔒 Acesso Restrito")
+    st.subheader("Digite a senha para acessar o gerador da Lotofácil")
+    
+    senha_digitada = st.text_input("Senha:", type="password")
+    
+    if st.button("Entrar"):
+        senha_correta = st.secrets.get("APP_PASSWORD", "123456")
+        
+        if senha_digitada == senha_correta:
+            st.session_state.autenticado = True
+            st.rerun()
+        else:
+            st.error("Senha incorreta!")
+            
+    return False
+
+if not verificar_senha():
+    st.stop()
+
 
 # --- CONSTANTES E GRUPOS ---
 GRUPOS_56 = {
@@ -73,34 +101,25 @@ GRUPOS_56 = {
 MOLDURA = {1, 2, 3, 4, 5, 6, 10, 11, 15, 16, 20, 21, 22, 23, 24, 25}
 PRIMOS = {2, 3, 5, 7, 11, 13, 17, 19, 23}
 MESTRAS = {1, 2, 3, 5, 9, 10, 11, 13, 20, 25}
-DEZENAS_OBRIGATORIAS = {18}
 
-# --- PAINEL LATERAL (CONFIGURAÇÃO DE FILTROS) ---
-st.sidebar.header("⚙️ Painel de Controle dos Filtros")
+# --- FUNÇÕES AUXILIARES ---
+def calcular_atrasos(df_last_25, col_bolas):
+    atrasos = {}
+    jogos = df_last_25[col_bolas].astype(int).values.tolist()
+    # Inverte para percorrer do concurso mais recente para o mais antigo
+    jogos_rev = list(reversed(jogos))
+    
+    for dezena in range(1, 26):
+        atraso = 0
+        for concurso in jogos_rev:
+            if dezena in concurso:
+                break
+            atraso += 1
+        atrasos[dezena] = atraso
+        
+    dezenas_ordenadas = sorted(atrasos.keys(), key=lambda d: atrasos[d], reverse=True)
+    return dezenas_ordenadas, atrasos
 
-usar_soma = st.sidebar.checkbox("Filtro: Soma Total (180 a 210)", value=True)
-usar_repetidas = st.sidebar.checkbox("Filtro: Repetidas Concurso Anterior (9 ou 10)", value=True)
-usar_moldura = st.sidebar.checkbox("Filtro: Dezenas na Moldura (9 ou 10)", value=True)
-usar_primos = st.sidebar.checkbox("Filtro: Dezenas Primas (5 ou 6)", value=True)
-usar_impares = st.sidebar.checkbox("Filtro: Dezenas Ímpares (7 ou 8)", value=True)
-usar_sequencia = st.sidebar.checkbox("Filtro: Sequência Máxima (4 ou 5)", value=True)
-usar_obrig = st.sidebar.checkbox("Filtro: Dezena Obrigatória (18)", value=True)
-
-# Total de filtros ativos
-filtros_ativos = sum([usar_soma, usar_repetidas, usar_moldura, usar_primos, usar_impares, usar_sequencia, usar_obrig])
-
-st.sidebar.markdown("---")
-st.sidebar.subheader("🎯 Tolerância a Falhas")
-
-# Define o mínimo de aprovações aceitáveis
-min_aprovacoes = st.sidebar.slider(
-    "Mínimo de Filtros Exigidos:",
-    min_value=1,
-    max_value=max(1, filtros_ativos),
-    value=max(1, filtros_ativos)
-)
-
-# --- FUNÇÕES DE LÓGICA OTIMIZADAS ---
 def seq_max(comb):
     max_c, curr_c = 1, 1
     for i in range(1, 15):
@@ -112,56 +131,108 @@ def seq_max(comb):
             curr_c = 1
     return max_c
 
-def validar_jogo_flexivel(comb, prev_draw, set_grupo):
+def validar_jogo_flexivel(comb, prev_draw, set_grupo, dezenas_obrig_set, min_aprov):
     acertos = 0
     j_set = set(comb)
     
-    # Check 1: Soma
     if usar_soma and (180 <= sum(comb) <= 210):
         acertos += 1
         
-    # Check 2: Repetidas
     if usar_repetidas and (len(j_set.intersection(prev_draw)) in [9, 10]):
         acertos += 1
         
-    # Check 3: Moldura
     if usar_moldura and (len(j_set.intersection(MOLDURA)) in [9, 10]):
         acertos += 1
         
-    # Check 4: Primos
     if usar_primos and (len(j_set.intersection(PRIMOS)) in [5, 6]):
         acertos += 1
         
-    # Check 5: Ímpares
     if usar_impares and (sum(1 for x in comb if x % 2 != 0) in [7, 8]):
         acertos += 1
         
-    # Check 6: Sequência Máxima
     if usar_sequencia and (seq_max(comb) in [4, 5]):
         acertos += 1
         
-    # Check 7: Dezena Obrigatória
     if usar_obrig:
-        obrig = DEZENAS_OBRIGATORIAS.intersection(set_grupo)
-        if not obrig or obrig.issubset(j_set):
+        # Se houver dezenas obrigatórias no grupo, todas devem estar presentes no jogo
+        obrig_no_grupo = dezenas_obrig_set.intersection(set_grupo)
+        if not obrig_no_grupo or obrig_no_grupo.issubset(j_set):
             acertos += 1
 
-    return acertos >= min_aprovacoes
+    return acertos >= min_aprov
 
-# --- INTERFACE E PROCESSAMENTO ---
+# --- PAINEL LATERAL (CONFIGURAÇÃO DE FILTROS) ---
+st.sidebar.header("⚙️ Painel de Controle dos Filtros")
+
+usar_soma = st.sidebar.checkbox("Filtro: Soma Total (180 a 210)", value=True)
+usar_repetidas = st.sidebar.checkbox("Filtro: Repetidas Concurso Anterior (9 ou 10)", value=True)
+usar_moldura = st.sidebar.checkbox("Filtro: Dezenas na Moldura (9 ou 10)", value=True)
+usar_primos = st.sidebar.checkbox("Filtro: Dezenas Primas (5 ou 6)", value=True)
+usar_impares = st.sidebar.checkbox("Filtro: Dezenas Ímpares (7 ou 8)", value=True)
+usar_sequencia = st.sidebar.checkbox("Filtro: Sequência Máxima (4 ou 5)", value=True)
+usar_obrig = st.sidebar.checkbox("Filtro: Dezenas Obrigatórias", value=True)
+
+# Total de filtros ativos
+filtros_ativos = sum([usar_soma, usar_repetidas, usar_moldura, usar_primos, usar_impares, usar_sequencia, usar_obrig])
+
+st.sidebar.markdown("---")
+st.sidebar.subheader("🎯 Tolerância a Falhas")
+
+min_aprovacoes = st.sidebar.slider(
+    "Mínimo de Filtros Exigidos:",
+    min_value=1,
+    max_value=max(1, filtros_ativos),
+    value=max(1, filtros_ativos)
+)
+
+# --- INTERFACE PRINCIPAL ---
+st.title("🎲 Gerador Otimizado Lotofácil")
+st.markdown("Faça o upload da planilha atualizada, ajuste as dezenas obrigatórias e os filtros para gerar seus palpites.")
+
 uploaded_file = st.file_uploader("Selecione a planilha Excel (.xlsx)", type=["xlsx"])
 
 if uploaded_file is not None:
-    if st.button("Gerar Palpites Otimizados"):
-        try:
-            df = pd.read_excel(uploaded_file, sheet_name='LOTOFÁCIL')
-            col_bolas = [f'Bola{i}' for i in range(1, 16)]
+    try:
+        df = pd.read_excel(uploaded_file, sheet_name='LOTOFÁCIL')
+        col_bolas = [f'Bola{i}' for i in range(1, 16)]
 
-            last_25 = df.iloc[-25:]
-            last_contest_row = df.iloc[-1]
-            last_contest_num = int(last_contest_row.iloc[0]) if 'Concurso' in df.columns else len(df)
-            prev_draw = set(last_contest_row[col_bolas].astype(int).values)
+        last_25 = df.iloc[-25:]
+        last_contest_row = df.iloc[-1]
+        last_contest_num = int(last_contest_row.iloc[0]) if 'Concurso' in df.columns else len(df)
+        prev_draw = set(last_contest_row[col_bolas].astype(int).values)
 
+        # Configuração Dinâmica de Dezenas Obrigatórias
+        dezenas_obrig_selecionadas = []
+        if usar_obrig:
+            st.subheader("📌 Configuração de Dezenas Obrigatórias")
+            modo_obrig = st.radio(
+                "Como deseja definir as dezenas obrigatórias?",
+                ["Escolher manualmente", "Sugestão por atraso (calculado da planilha)"],
+                horizontal=True
+            )
+            
+            if modo_obrig == "Escolher manualmente":
+                dezenas_obrig_selecionadas = st.multiselect(
+                    "Selecione a(s) dezena(s) obrigatória(s):",
+                    options=list(range(1, 26)),
+                    default=[]
+                )
+            else:
+                dezenas_atrasadas, mapa_atrasos = calcular_atrasos(last_25, col_bolas)
+                opcoes_atraso = [f"Dezena {d:02d} ({mapa_atrasos[d]} concursos sem sair)" for d in dezenas_atrasadas]
+                
+                sel_atraso = st.multiselect(
+                    "Dezenas ordenadas pelo maior atraso (últimos 25 concursos):",
+                    options=opcoes_atraso,
+                    default=opcoes_atraso[:2]
+                )
+                dezenas_obrig_selecionadas = [int(item.split()[1]) for item in sel_atraso]
+
+        set_dezenas_obrig = set(dezenas_obrig_selecionadas)
+
+        st.markdown("---")
+
+        if st.button("Gerar Palpites Otimizados"):
             scores = {}
             for g_name, nums in GRUPOS_56.items():
                 set_g = set(nums)
@@ -187,7 +258,7 @@ if uploaded_file is not None:
                 set_g = set(nums)
                 sorted_g = sorted(nums)
                 
-                validos = [c for c in itertools.combinations(sorted_g, 15) if validar_jogo_flexivel(c, prev_draw, set_g)]
+                validos = [c for c in itertools.combinations(sorted_g, 15) if validar_jogo_flexivel(c, prev_draw, set_g, set_dezenas_obrig, min_aprovacoes)]
                 
                 if validos:
                     jogos_gerados.extend(random.sample(validos, min(len(validos), 4)))
@@ -211,5 +282,5 @@ if uploaded_file is not None:
             else:
                 st.warning("⚠️ Nenhum jogo atendeu aos critérios mínimos solicitados. Tente reduzir o 'Mínimo de Filtros Exigidos' na barra lateral.")
 
-        except Exception as e:
-            st.error(f"Erro ao processar o arquivo: {e}")
+    except Exception as e:
+        st.error(f"Erro ao processar o arquivo: {e}")
