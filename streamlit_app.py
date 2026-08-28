@@ -8,6 +8,39 @@ import random
 # Configuração da página web
 st.set_page_config(page_title="Gerador Lotofácil", page_icon="🎲", layout="centered")
 
+# -----------------------------------------------------------------------------
+# AUTENTICAÇÃO / TELA DE LOGIN
+# -----------------------------------------------------------------------------
+def verificar_senha():
+    if "autenticado" not in st.session_state:
+        st.session_state.autenticado = False
+
+    if st.session_state.autenticado:
+        return True
+
+    st.title("🔒 Acesso Restrito")
+    st.subheader("Digite a senha para acessar o gerador da Lotofácil")
+    
+    senha_digitada = st.text_input("Senha:", type="password")
+    
+    if st.button("Entrar"):
+        # Busca a senha configurada nos Secrets do Streamlit Cloud
+        senha_correta = st.secrets.get("APP_PASSWORD", "123456")
+        
+        if senha_digitada == senha_correta:
+            st.session_state.autenticado = True
+            st.rerun()
+        else:
+            st.error("Senha incorreta!")
+            
+    return False
+
+if not verificar_senha():
+    st.stop()
+
+# -----------------------------------------------------------------------------
+# APLICAÇÃO PRINCIPAL
+# -----------------------------------------------------------------------------
 st.title("🎲 Gerador Otimizado Lotofácil")
 st.write("Faça o upload da planilha atualizada para recalibrar os grupos estatísticos e gerar os bilhetes.")
 
