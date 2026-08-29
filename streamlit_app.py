@@ -4,9 +4,11 @@ import numpy as np
 import itertools
 from datetime import datetime
 import random
+import requests
+from bs4 import BeautifulSoup
 
 # Configuração da página web
-st.set_page_config(page_title="Gerador Lotofácil", page_icon="🎲", layout="wide")
+st.set_page_config(page_title="Gerador Lotofácil Analytics Pro", page_icon="🎲", layout="wide")
 
 # -----------------------------------------------------------------------------
 # AUTENTICAÇÃO / TELA DE LOGIN
@@ -38,12 +40,52 @@ if not verificar_senha():
     st.stop()
 
 # -----------------------------------------------------------------------------
-# TÍTULO E INTERFACE PRINCIPAL
+# FUNÇÃO DE WEB SCRAPING & CARREGAMENTO DE DADOS
 # -----------------------------------------------------------------------------
-st.title("🎲 Gerador Otimizado Lotofácil")
-st.write("Faça o upload da planilha atualizada para recalibrar os grupos estatísticos com base nos últimos 25 concursos reais.")
+@st.cache_data(ttl=3600)
+def carregar_dados_online():
+    url = "https://asloterias.com.br/lista-de-resultados-da-lotofacil"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    }
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 200:
+            soup = BeautifulSoup(response.text, 'html.parser')
+            # Busca divs contendo os resultados
+            container = soup.find('div', class_='col-md-8') or soup
+            linhas = container.get_text().split('\n')
+            
+            dados = []
+            for linha in linhas:
+                linha = linha.strip()
+                # Formato esperado: "3774 - 28/08/2026 - 01 03 04 05..."
+                if " - " in linha and len(linha.split(" - ")) >= 3:
+                    partes = linha.split(" - ")
+                    try:
+                        conc = int(partes[0].strip())
+                        data = partes[1].strip()
+                        dezenas_str = partes[2].strip().split()
+                        if len(dezenas_str) == 15:
+                            dezenas = [int(d) for d in dezenas_str]
+                            row = {"concurso": conc, "data": data}
+                            for i, d in enumerate(dezenas, 1):
+                                row[f"Bola{i}"] = d
+                            dados.append(row)
+                    except ValueError:
+                        continue
+            if dados:
+                df = pd.DataFrame(dados)
+                # Ordena concursos do mais antigo para o mais recente
+                df = df.sort_values(by="concurso", ascending=True).reset_index(drop=True)
+                return df
+    except Exception as e:
+        pass
+    return None
 
-# Constantes e Grupos Originais
+# -----------------------------------------------------------------------------
+# MATRIZ E CONSTANTES ORIGINAIS (MANTIDAS 100% INTACTAS)
+# -----------------------------------------------------------------------------
 GRUPOS_56 = {
     'GRUPO 01': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 22, 23, 24],
     'GRUPO 02': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 21, 23],
@@ -107,6 +149,9 @@ MOLDURA = {1, 2, 3, 4, 5, 6, 10, 11, 15, 16, 20, 21, 22, 23, 24, 25}
 PRIMOS = {2, 3, 5, 7, 11, 13, 17, 19, 23}
 MESTRAS = {1, 2, 3, 5, 9, 10, 11, 13, 20, 25}
 
+# -----------------------------------------------------------------------------
+# FUNÇÕES AUXILIARES DE CÁLCULO
+# -----------------------------------------------------------------------------
 def seq_max(comb):
     max_c, curr_c = 1, 1
     for i in range(1, 15):
@@ -116,11 +161,11 @@ def seq_max(comb):
         else: curr_c = 1
     return max_c
 
-def calcular_atrasos(resultados_25):
+def calcular_atrasos(resultados_janela):
     atrasos = {}
     for dezena in range(1, 26):
         atraso = 0
-        for concurso in resultados_25:
+        for concurso in resultados_janela:
             if dezena in concurso:
                 break
             atraso += 1
@@ -129,12 +174,9 @@ def calcular_atrasos(resultados_25):
     dezenas_ordenadas = sorted(atrasos.keys(), key=lambda d: atrasos[d], reverse=True)
     return dezenas_ordenadas, atrasos
 
-# -----------------------------------------------------------------------------
-# VALIDAÇÃO FLEXÍVEL CORRIGIDA
-# -----------------------------------------------------------------------------
 def validar_jogo_flexivel(comb, prev_draw, 
-                          usar_soma, usar_repetidas, usar_moldura, usar_primos, 
-                          usar_mestras, usar_impares, usar_sequencia, min_aprovacoes):
+                           usar_soma, usar_repetidas, usar_moldura, usar_primos, 
+                           usar_mestras, usar_impares, usar_sequencia, min_aprovacoes):
     acertos = 0
     j_set = set(comb)
     
@@ -169,22 +211,61 @@ def validar_jogo_flexivel(comb, prev_draw,
     return acertos >= min_aprovacoes
 
 # -----------------------------------------------------------------------------
-# UPLOAD DA PLANILHA E BARRA LATERAL
+# INTERFACE PRINCIPAL & GESTÃO DA BASE HISTÓRICA
 # -----------------------------------------------------------------------------
-uploaded_file = st.file_uploader("📂 Faça o upload da planilha Excel atualizada (.xlsx)", type=["xlsx"])
+st.title("🎲 Gerador Otimizado Lotofácil Analytics Pro")
+
+# Tenta carregar base online via Scraping primeiramente
+df_historico = carregar_dados_online()
+
+st.sidebar.header("📁 Base Histórica de Dados")
+uploaded_file = st.sidebar.file_uploader("Upload manual de planilha (.xlsx)", type=["xlsx"])
 
 if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file, sheet_name='LOTOFÁCIL')
-    col_bolas = [f'Bola{i}' for i in range(1, 16)]
+    try:
+        df_historico = pd.read_excel(uploaded_file, sheet_name='LOTOFÁCIL' if 'LOTOFÁCIL' in pd.ExcelFile(uploaded_file).sheet_names else 0)
+        st.sidebar.success("Base carregada via Upload!")
+    except Exception as e:
+        st.sidebar.error(f"Erro ao carregar planilha: {e}")
+elif df_historico is not None and not df_historico.empty:
+    st.sidebar.success("🌐 Conectado online (`asloterias.com.br`)")
+else:
+    st.sidebar.warning("⚠️ Nenhuma base encontrada. Faça o upload para continuar.")
 
-    last_contest_row = df.iloc[-1]
-    last_contest_num = int(last_contest_row.iloc[0]) if 'Concurso' in df.columns or len(df.columns) > 0 else len(df)
+# Exibição do último concurso na Barra Lateral
+if df_historico is not None and not df_historico.empty:
+    col_bolas = [c for c in df_historico.columns if any(t in str(c).lower() for t in ['bola', 'dezena', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'd10', 'd11', 'd12', 'd13', 'd14','d15']) and 'data' not in str(c).lower()][:15]
     
-    st.info(f"📊 **Status da Planilha:** Último concurso registrado na base: **Concurso {last_contest_num}**. Análise calibrada usando os últimos 25 concursos do arquivo.")
+    ultimo_registro = df_historico.iloc[-1]
+    last_contest_num = int(ultimo_registro['concurso']) if 'concurso' in df_historico.columns else (int(ultimo_registro.iloc[0]) if str(ultimo_registro.iloc[0]).isdigit() else len(df_historico))
+    data_conc = str(ultimo_registro.get('data', ''))
+    data_str = f" ({data_conc})" if data_conc else ""
+
+    if len(col_bolas) == 15:
+        dezenas_ultimo = [f"{int(ultimo_registro[c]):02d}" for c in col_bolas]
+        dezenas_texto = " - ".join(dezenas_ultimo)
+        st.sidebar.info(
+            f"📌 **Último Concurso:** #{last_contest_num}{data_str}\n\n"
+            f"🎯 **Dezenas:** `{dezenas_texto}`"
+        )
+
+    # -----------------------------------------------------------------------------
+    # CONFIGURAÇÃO DE FILTROS E JANELA ESTATÍSTICA
+    # -----------------------------------------------------------------------------
+    st.sidebar.markdown("---")
+    st.sidebar.header("⚙️ Escopo da Análise")
+    total_concursos_base = len(df_historico)
+    qtd_janela = st.sidebar.number_input(
+        "Quantidade de concursos para recalibragem dos grupos:", 
+        min_value=10, 
+        max_value=total_concursos_base, 
+        value=min(25, total_concursos_base), 
+        step=5
+    )
+    
+    st.info(f"📊 **Status da Base:** Concurso mais recente: **{last_contest_num}**. Análise calibrada usando os últimos **{qtd_janela}** concursos do histórico.")
 
     st.sidebar.header("⚙️ Configuração de Filtros Estatísticos")
-    st.sidebar.write("Ative os filtros desejados e defina o rigor:")
-    
     usar_soma = st.sidebar.checkbox("Filtro de Soma (160 - 220)", value=True)
     usar_repetidas = st.sidebar.checkbox("Filtro de Repetidas (8 a 11)", value=True)
     usar_moldura = st.sidebar.checkbox("Filtro de Moldura (8 a 11)", value=True)
@@ -205,21 +286,21 @@ if uploaded_file is not None:
             default=[]
         )
 
-    total_filtros_possiveis = 7
-    min_aprovacoes = st.sidebar.slider("Mínimo de regras estatísticas atendidas:", min_value=1, max_value=total_filtros_possiveis, value=5)
+    min_aprovacoes = st.sidebar.slider("Mínimo de regras estatísticas atendidas:", min_value=1, max_value=7, value=5)
 
-    last_25_df = df.iloc[-25:].iloc[::-1] 
-    ultimos_25_concursos = []
-    for _, row in last_25_df.iterrows():
+    # Extração dos sorteios da janela selecionada
+    last_janela_df = df_historico.iloc[-qtd_janela:].iloc[::-1]
+    janela_concursos = []
+    for _, row in last_janela_df.iterrows():
         concurso_lista = row[col_bolas].astype(int).tolist()
-        ultimos_25_concursos.append(concurso_lista)
+        janela_concursos.append(concurso_lista)
 
-    dezenas_mais_atrasadas, mapa_atrasos = calcular_atrasos(ultimos_25_concursos)
+    dezenas_mais_atrasadas, mapa_atrasos = calcular_atrasos(janela_concursos)
 
     st.subheader("Filtro: Dezenas Obrigatórias (Devem estar em 100% dos jogos)")
     modo_selecao = st.radio(
         "Como deseja escolher as dezenas obrigatórias?",
-        ["Escolher manualmente", "Sugestão por atraso (últimos 25 concursos da planilha)"],
+        ["Escolher manualmente", f"Sugestão por atraso (últimos {qtd_janela} concursos)"],
         horizontal=True
     )
 
@@ -230,10 +311,10 @@ if uploaded_file is not None:
             default=[]
         )
     else:
-        opcoes_formatadas = [f"Dezena {d} ({mapa_atrasos[d]} concursos sem sair nos últimos 25)" for d in dezenas_mais_atrasadas]
+        opcoes_formatadas = [f"Dezena {d} ({mapa_atrasos[d]} concursos sem sair)" for d in dezenas_mais_atrasadas]
         
         selecao_formatada = st.multiselect(
-            "Dezenas ordenadas pelo maior atraso:",
+            "Dezenas ordenadas pelo maior atraso no período selecionado:",
             options=opcoes_formatadas,
             default=opcoes_formatadas[:2]
         )
@@ -246,32 +327,32 @@ if uploaded_file is not None:
 
     dezenas_obrigatorias_set = set(dezenas_selecionadas)
     dezenas_fixas_set = set(dezenas_fixas_selecionadas) if usar_fixas else set()
-    
-    # Junta todas as dezenas que são obrigatórias/fixas de forma absoluta
     todas_obrigatorias_absolutas = dezenas_obrigatorias_set.union(dezenas_fixas_set)
 
-    if st.button("Gerar Palpites"):
-        # Validação preventiva
+    # -----------------------------------------------------------------------------
+    # GERAÇÃO DE PALPITES (A PARTIR DOS TOP 5 GRUPOS)
+    # -----------------------------------------------------------------------------
+    if st.button("Gerar Palpites", type="primary"):
         if len(todas_obrigatorias_absolutas) > 15:
             st.error(f"⚠️ Você selecionou {len(todas_obrigatorias_absolutas)} dezenas obrigatórias/fixas no total, mas um jogo da Lotofácil tem no máximo 15 dezenas! Reduza a quantidade.")
         elif usar_fixas and not dezenas_fixas_selecionadas:
             st.error("⚠️ Você ativou a opção de Dezenas Fixas na barra lateral, mas não selecionou nenhuma!")
         else:
-            prev_draw = set(last_contest_row[col_bolas].astype(int).values)
+            prev_draw = set(df_historico.iloc[-1][col_bolas].astype(int).values)
 
-            # 1. Avalia os Top 5 Grupos baseados nos últimos 25 concursos
+            # 1. Avalia os Top 5 Grupos baseados na janela de concursos selecionada
             scores = {}
-            last_25_score_df = df.iloc[-25:]
+            last_janela_score_df = df_historico.iloc[-qtd_janela:]
             for g_name, nums in GRUPOS_56.items():
                 set_g = set(nums)
                 c_14_15, c_13, total_hits = 0, 0, 0
-                for _, row in last_25_score_df.iterrows():
+                for _, row in last_janela_score_df.iterrows():
                     draw = set(row[col_bolas].astype(int).values)
                     hits = len(set_g.intersection(draw))
                     total_hits += hits
                     if hits >= 14: c_14_15 += 1
                     elif hits == 13: c_13 += 1
-                media = total_hits / 25
+                media = total_hits / qtd_janela
                 score = (c_14_15 * 50) + (c_13 * 10) + (media * 5)
                 scores[g_name] = (score, c_14_15, c_13, media)
 
@@ -280,28 +361,23 @@ if uploaded_file is not None:
 
             jogos_gerados = []
             
-            # 2. Gera as combinações dentro dos melhores grupos garantindo as regras obrigatórias na raiz
+            # 2. Gera as combinações dentro dos melhores grupos garantindo as regras obrigatórias
             for g_name in top_5_names:
                 nums = GRUPOS_56[g_name]
                 set_g = set(nums)
                 
-                # VERIFICAÇÃO DE SEGURANÇA: As dezenas obrigatórias precisam pertencer aos 20 números do grupo
                 if not todas_obrigatorias_absolutas.issubset(set_g):
-                    # Se o grupo não contiver todas as dezenas obrigatórias escolhidas, ele pula este grupo para evitar jogos vazios
                     continue
 
-                # Remove as obrigatórias da lista de escolha e calcula quantas faltam para completar 15
                 dezenas_disponiveis = sorted(list(set_g - todas_obrigatorias_absolutas))
                 vagas_restantes = 15 - len(todas_obrigatorias_absolutas)
                 
                 if vagas_restantes < 0:
                     continue
 
-                # Cria combinações apenas com as vagas restantes somadas às dezenas obrigatórias fixas
                 for comb_parcial in itertools.combinations(dezenas_disponiveis, vagas_restantes):
                     jogo_completo = sorted(list(comb_parcial) + list(todas_obrigatorias_absolutas))
                     
-                    # Valida se o jogo atende aos filtros estatísticos selecionados no slider
                     if validar_jogo_flexivel(
                         jogo_completo, prev_draw, 
                         usar_soma, usar_repetidas, usar_moldura, usar_primos, 
@@ -309,7 +385,7 @@ if uploaded_file is not None:
                     ):
                         jogos_gerados.append(jogo_completo)
 
-            # Remove duplicadas caso apareçam em grupos diferentes
+            # Remove duplicadas
             jogos_unicos = []
             vistos = set()
             for j in jogos_gerados:
@@ -319,10 +395,12 @@ if uploaded_file is not None:
                     jogos_unicos.append(j)
 
             if jogos_unicos:
-                # Seleciona até 20 jogos aleatórios dos válidos encontrados
                 amostra_jogos = random.sample(jogos_unicos, min(len(jogos_unicos), 20))
                 
-                st.success(f"Grupos Quentes identificados na planilha: {', '.join(top_5_names)}")
+                # Salva os jogos na sessão do Streamlit para serem conferidos posteriormente
+                st.session_state['jogos_gerados_atuais'] = amostra_jogos
+                
+                st.success(f"Grupos Quentes identificados na janela: {', '.join(top_5_names)}")
                 st.write(f"Total de jogos válidos encontrados respeitando suas dezenas obrigatórias: **{len(jogos_unicos)}**")
 
                 conteudo_txt = f"=== PALPITES CONCURSO {last_contest_num + 1} ===\n\n"
@@ -339,6 +417,43 @@ if uploaded_file is not None:
                     mime="text/plain"
                 )
             else:
+                st.session_state['jogos_gerados_atuais'] = []
                 st.error("⚠️ Nenhum jogo foi gerado. Isso ocorre porque a quantidade de dezenas obrigatórias/fixas selecionadas é muito alta ou restritiva demais para os Top 5 Grupos estatísticos atuais. Tente desmarcar algumas dezenas ou flexibilizar os filtros.")
+
+    # -----------------------------------------------------------------------------
+    # CONFERÊNCIA E BACKTESTING DE PREMIAÇÕES HISTÓRICAS
+    # -----------------------------------------------------------------------------
+    if 'jogos_gerados_atuais' in st.session_state and st.session_state['jogos_gerados_atuais']:
+        st.markdown("---")
+        st.subheader("🔍 Conferência Histórica dos Jogos Gerados")
+        st.markdown("Verifique se algum dos jogos gerados acima já obteve **(12)**, **(13)**, **(14)** ou **(15)** acertos em toda a história registrada da Lotofácil.")
+        
+        if st.button("🔎 Verificar Premiações no Histórico Completo"):
+            premiacoes_encontradas = []
+            
+            for idx_jogo, jogo in enumerate(st.session_state['jogos_gerados_atuais'], start=1):
+                set_jogo = set(jogo)
+                for _, row in df_historico.iterrows():
+                    sorteio_num = row.get('concurso', 'N/A')
+                    sorteio_dezenas = set(row[col_bolas].astype(int).values)
+                    acertos = len(set_jogo.intersection(sorteio_dezenas))
+                    
+                    if acertos >= 12:  # Regra corrigida para considerar prêmios de 12 a 15 pontos
+                        tipo = "Doze (12 pts)" if acertos == 12 else ("Treze (13 pts)" if acertos == 13 else ("QUATORZE (14 pts)" if acertos == 14 else "QUINZE (15 pts)"))
+                        premiacoes_encontradas.append({
+                            "Jogo Gerado N°": idx_jogo,
+                            "Dezenas do Jogo": ", ".join(map(str, jogo)),
+                            "Tipo de Prêmio": tipo,
+                            "Concurso": sorteio_num,
+                            "Dezenas Sorteadas": ", ".join(map(str, sorted(list(sorteio_dezenas))))
+                        })
+            
+            if premiacoes_encontradas:
+                df_premios = pd.DataFrame(premiacoes_encontradas)
+                df_premios.index = df_premios.index + 1
+                st.success(f"🎉 Foram encontradas **{len(premiacoes_encontradas)}** ocorrências de premiações históricas para os jogos gerados!")
+                st.dataframe(df_premios, use_container_width=True)
+            else:
+                st.info("ℹ️ Nenhum dos jogos gerados nesta rodada obteve 12, 13, 14 ou 15 acertos no histórico do banco de dados consultado.")
 else:
-    st.warning("⚠️ Por favor, faça o upload da sua planilha Excel (.xlsx) da Lotofácil para habilitar a geração de palpites e o cálculo estatístico.")
+    st.warning("⚠️ Por favor, conecte à internet ou faça o upload da sua planilha Excel (.xlsx) da Lotofácil para habilitar o gerador.")
