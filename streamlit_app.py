@@ -41,7 +41,7 @@ if not verificar_senha():
     st.stop()
 
 # -----------------------------------------------------------------------------
-# FUNÇÃO DE WEB SCRAPING & CARREGAMENTO DE DADOS (USANDO REGEX ROBUSTO)
+# FUNÇÃO DE WEB SCRAPING & CARREGAMENTO DE DADOS
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def carregar_dados_online():
@@ -56,7 +56,6 @@ def carregar_dados_online():
             container = soup.find('div', class_='col-md-8') or soup
             texto = container.get_text(separator=' ')
             
-            # Captura Concurso, Data e as 15 Dezenas via Regex
             padrao = re.compile(r'(\d{4})\s*-\s*(\d{2}/\d{2}/\d{4})\s*-\s*' + r'\s+'.join([r'(\d{2})']*15))
             matches = padrao.findall(texto)
             
@@ -72,14 +71,13 @@ def carregar_dados_online():
             
             if dados:
                 df = pd.DataFrame(dados)
-                # Ordena concursos do mais antigo para o mais recente
                 return df.sort_values(by="concurso", ascending=True).reset_index(drop=True)
     except Exception:
         pass
     return None
 
 # -----------------------------------------------------------------------------
-# MATRIZ E CONSTANTES ORIGINAIS
+# MATRIZ E CONSTANTES (INSIRA SEUS NOVOS GRUPOS AQUI)
 # -----------------------------------------------------------------------------
 GRUPOS_56 = {
     'GRUPO 01': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 22, 23, 24],
@@ -149,11 +147,13 @@ MESTRAS = {1, 2, 3, 5, 9, 10, 11, 13, 20, 25}
 # -----------------------------------------------------------------------------
 def seq_max(comb):
     max_c, curr_c = 1, 1
-    for i in range(1, 15):
+    for i in range(1, len(comb)):
         if comb[i] == comb[i - 1] + 1:
             curr_c += 1
-            if curr_c > max_c: max_c = curr_c
-        else: curr_c = 1
+            if curr_c > max_c: 
+                max_c = curr_c
+        else: 
+            curr_c = 1
     return max_c
 
 def calcular_atrasos(resultados_janela):
@@ -175,31 +175,24 @@ def validar_jogo_flexivel(comb, prev_draw,
     acertos = 0
     j_set = set(comb)
     
-    # 1. Soma
     if usar_soma and (160 <= sum(comb) <= 220):
         acertos += 1
         
-    # 2. Repetidas
     if usar_repetidas and (len(j_set.intersection(prev_draw)) in [8, 9, 10, 11]):
         acertos += 1
         
-    # 3. Moldura
     if usar_moldura and (len(j_set.intersection(MOLDURA)) in [8, 9, 10, 11]):
         acertos += 1
         
-    # 4. Primos
     if usar_primos and (len(j_set.intersection(PRIMOS)) in [4, 5, 6, 7]):
         acertos += 1
         
-    # 5. Mestras
     if usar_mestras and (len(j_set.intersection(MESTRAS)) in [5, 6, 7, 8]):
         acertos += 1
         
-    # 6. Ímpares
     if usar_impares and (sum(1 for x in comb if x % 2 != 0) in [6, 7, 8, 9]):
         acertos += 1
         
-    # 7. Sequência Máxima
     if usar_sequencia and (seq_max(comb) in [3, 4, 5, 6, 7]):
         acertos += 1
 
@@ -210,7 +203,6 @@ def validar_jogo_flexivel(comb, prev_draw,
 # -----------------------------------------------------------------------------
 st.title("🎲 Gerador Otimizado Lotofácil Analytics Pro")
 
-# Tenta carregar base online via Scraping primeiramente
 df_historico = carregar_dados_online()
 
 st.sidebar.header("📁 Base Histórica de Dados")
@@ -227,7 +219,6 @@ elif df_historico is not None and not df_historico.empty:
 else:
     st.sidebar.warning("⚠️ Nenhuma base encontrada. Faça o upload para continuar.")
 
-# Exibição do último concurso na Barra Lateral
 if df_historico is not None and not df_historico.empty:
     col_bolas = [c for c in df_historico.columns if any(t in str(c).lower() for t in ['bola', 'dezena', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'd10', 'd11', 'd12', 'd13', 'd14','d15']) and 'data' not in str(c).lower()][:15]
     
@@ -244,9 +235,6 @@ if df_historico is not None and not df_historico.empty:
             f"🎯 **Dezenas:** `{dezenas_texto}`"
         )
 
-    # -----------------------------------------------------------------------------
-    # CONFIGURAÇÃO DE FILTROS E JANELA ESTATÍSTICA
-    # -----------------------------------------------------------------------------
     st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Escopo da Análise")
     total_concursos_base = len(df_historico)
@@ -283,7 +271,6 @@ if df_historico is not None and not df_historico.empty:
 
     min_aprovacoes = st.sidebar.slider("Mínimo de regras estatísticas atendidas:", min_value=1, max_value=7, value=5)
 
-    # Extração dos sorteios da janela selecionada
     last_janela_df = df_historico.iloc[-qtd_janela:].iloc[::-1]
     janela_concursos = []
     for _, row in last_janela_df.iterrows():
@@ -325,7 +312,7 @@ if df_historico is not None and not df_historico.empty:
     todas_obrigatorias_absolutas = dezenas_obrigatorias_set.union(dezenas_fixas_set)
 
     # -----------------------------------------------------------------------------
-    # GERAÇÃO DE PALPITES (A PARTIR DOS TOP 5 GRUPOS)
+    # GERAÇÃO DE PALPITES
     # -----------------------------------------------------------------------------
     if st.button("Gerar Palpites", type="primary"):
         if len(todas_obrigatorias_absolutas) > 15:
@@ -335,7 +322,6 @@ if df_historico is not None and not df_historico.empty:
         else:
             prev_draw = set(df_historico.iloc[-1][col_bolas].astype(int).values)
 
-            # 1. Avalia os Top 5 Grupos baseados na janela de concursos selecionada
             scores = {}
             last_janela_score_df = df_historico.iloc[-qtd_janela:]
             for g_name, nums in GRUPOS_56.items():
@@ -356,18 +342,18 @@ if df_historico is not None and not df_historico.empty:
 
             jogos_gerados = []
             
-            # 2. Gera as combinações dentro dos melhores grupos garantindo as regras obrigatórias
             for g_name in top_5_names:
                 nums = GRUPOS_56[g_name]
                 set_g = set(nums)
                 
-                if not todas_obrigatorias_absolutas.issubset(set_g):
+                # Validação defensiva: Pula grupos com menos de 15 dezenas ou que não contêm as obrigatórias
+                if len(set_g) < 15 or not todas_obrigatorias_absolutas.issubset(set_g):
                     continue
 
                 dezenas_disponiveis = sorted(list(set_g - todas_obrigatorias_absolutas))
                 vagas_restantes = 15 - len(todas_obrigatorias_absolutas)
                 
-                if vagas_restantes < 0:
+                if vagas_restantes < 0 or len(dezenas_disponiveis) < vagas_restantes:
                     continue
 
                 for comb_parcial in itertools.combinations(dezenas_disponiveis, vagas_restantes):
@@ -380,7 +366,6 @@ if df_historico is not None and not df_historico.empty:
                     ):
                         jogos_gerados.append(jogo_completo)
 
-            # Remove duplicadas
             jogos_unicos = []
             vistos = set()
             for j in jogos_gerados:
@@ -391,8 +376,6 @@ if df_historico is not None and not df_historico.empty:
 
             if jogos_unicos:
                 amostra_jogos = random.sample(jogos_unicos, min(len(jogos_unicos), 20))
-                
-                # Salva os jogos na sessão do Streamlit para serem conferidos posteriormente
                 st.session_state['jogos_gerados_atuais'] = amostra_jogos
                 
                 st.success(f"Grupos Quentes identificados na janela: {', '.join(top_5_names)}")
@@ -416,12 +399,12 @@ if df_historico is not None and not df_historico.empty:
                 st.error("⚠️ Nenhum jogo foi gerado. Isso ocorre porque a quantidade de dezenas obrigatórias/fixas selecionadas é muito alta ou restritiva demais para os Top 5 Grupos estatísticos atuais. Tente desmarcar algumas dezenas ou flexibilizar os filtros.")
 
     # -----------------------------------------------------------------------------
-    # CONFERÊNCIA E BACKTESTING DE PREMIAÇÕES HISTÓRICAS
+    # CONFERÊNCIA HISTÓRICA
     # -----------------------------------------------------------------------------
     if 'jogos_gerados_atuais' in st.session_state and st.session_state['jogos_gerados_atuais']:
         st.markdown("---")
         st.subheader("🔍 Conferência Histórica dos Jogos Gerados")
-        st.markdown("Verifique se algum dos jogos gerados acima já obteve *Doze*(12)**, *Treze*(13)**, *Quatorze*(14)** ou *Quinze*(15)** acertos em toda a história registrada da Lotofácil.")
+        st.markdown("Verifique se algum dos jogos gerados acima já obteve **Doze (12)**, **Treze (13)**, **Quatorze (14)** ou **Quinze (15)** acertos no histórico.")
         
         if st.button("🔎 Verificar Premiações no Histórico Completo"):
             premiacoes_encontradas = []
