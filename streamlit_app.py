@@ -6,6 +6,7 @@ from datetime import datetime
 import random
 import requests
 from bs4 import BeautifulSoup
+import re
 
 # Configuração da página web
 st.set_page_config(page_title="Gerador Lotofácil Analytics Pro", page_icon="🎲", layout="wide")
@@ -40,7 +41,7 @@ if not verificar_senha():
     st.stop()
 
 # -----------------------------------------------------------------------------
-# FUNÇÃO DE WEB SCRAPING & CARREGAMENTO DE DADOS
+# FUNÇÃO DE WEB SCRAPING & CARREGAMENTO DE DADOS (USANDO REGEX ROBUSTO)
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def carregar_dados_online():
@@ -52,39 +53,33 @@ def carregar_dados_online():
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
-            # Busca divs contendo os resultados
             container = soup.find('div', class_='col-md-8') or soup
-            linhas = container.get_text().split('\n')
+            texto = container.get_text(separator=' ')
+            
+            # Captura Concurso, Data e as 15 Dezenas via Regex
+            padrao = re.compile(r'(\d{4})\s*-\s*(\d{2}/\d{2}/\d{4})\s*-\s*' + r'\s+'.join([r'(\d{2})']*15))
+            matches = padrao.findall(texto)
             
             dados = []
-            for linha in linhas:
-                linha = linha.strip()
-                # Formato esperado: "3774 - 28/08/2026 - 01 03 04 05..."
-                if " - " in linha and len(linha.split(" - ")) >= 3:
-                    partes = linha.split(" - ")
-                    try:
-                        conc = int(partes[0].strip())
-                        data = partes[1].strip()
-                        dezenas_str = partes[2].strip().split()
-                        if len(dezenas_str) == 15:
-                            dezenas = [int(d) for d in dezenas_str]
-                            row = {"concurso": conc, "data": data}
-                            for i, d in enumerate(dezenas, 1):
-                                row[f"Bola{i}"] = d
-                            dados.append(row)
-                    except ValueError:
-                        continue
+            for match in matches:
+                conc = int(match[0])
+                data = match[1]
+                dezenas = [int(x) for x in match[2:]]
+                row = {"concurso": conc, "data": data}
+                for i, d in enumerate(dezenas, 1):
+                    row[f"Bola{i}"] = d
+                dados.append(row)
+            
             if dados:
                 df = pd.DataFrame(dados)
                 # Ordena concursos do mais antigo para o mais recente
-                df = df.sort_values(by="concurso", ascending=True).reset_index(drop=True)
-                return df
-    except Exception as e:
+                return df.sort_values(by="concurso", ascending=True).reset_index(drop=True)
+    except Exception:
         pass
     return None
 
 # -----------------------------------------------------------------------------
-# MATRIZ E CONSTANTES ORIGINAIS (MANTIDAS 100% INTACTAS)
+# MATRIZ E CONSTANTES ORIGINAIS
 # -----------------------------------------------------------------------------
 GRUPOS_56 = {
     'GRUPO 01': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 22, 23, 24],
@@ -438,7 +433,7 @@ if df_historico is not None and not df_historico.empty:
                     sorteio_dezenas = set(row[col_bolas].astype(int).values)
                     acertos = len(set_jogo.intersection(sorteio_dezenas))
                     
-                    if acertos >= 12:  # Regra corrigida para considerar prêmios de 12 a 15 pontos
+                    if acertos >= 12:
                         tipo = "Doze (12 pts)" if acertos == 12 else ("Treze (13 pts)" if acertos == 13 else ("QUATORZE (14 pts)" if acertos == 14 else "QUINZE (15 pts)"))
                         premiacoes_encontradas.append({
                             "Jogo Gerado N°": idx_jogo,
