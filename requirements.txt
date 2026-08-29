@@ -2,3 +2,6 @@ streamlit
 pandas
 numpy
 openpyxl
+xlsxwriter
+beautifulsoup4
+lxml
