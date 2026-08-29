@@ -421,7 +421,7 @@ if df_historico is not None and not df_historico.empty:
     if 'jogos_gerados_atuais' in st.session_state and st.session_state['jogos_gerados_atuais']:
         st.markdown("---")
         st.subheader("🔍 Conferência Histórica dos Jogos Gerados")
-        st.markdown("Verifique se algum dos jogos gerados acima já obteve **(12)**, **(13)**, **(14)** ou **(15)** acertos em toda a história registrada da Lotofácil.")
+        st.markdown("Verifique se algum dos jogos gerados acima já obteve *Doze*(12)**, *Treze*(13)**, *Quatorze*(14)** ou *Quinze*(15)** acertos em toda a história registrada da Lotofácil.")
         
         if st.button("🔎 Verificar Premiações no Histórico Completo"):
             premiacoes_encontradas = []
