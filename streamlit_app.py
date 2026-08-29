@@ -8,7 +8,6 @@ import requests
 from bs4 import BeautifulSoup
 import re
 
-# Configuração da página web
 st.set_page_config(page_title="Gerador Lotofácil Analytics Pro", page_icon="🎲", layout="wide")
 
 # -----------------------------------------------------------------------------
@@ -41,7 +40,7 @@ if not verificar_senha():
     st.stop()
 
 # -----------------------------------------------------------------------------
-# FUNÇÃO DE WEB SCRAPING & CARREGAMENTO DE DADOS
+# WEB SCRAPING & CARREGAMENTO DE DADOS
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def carregar_dados_online():
@@ -77,8 +76,35 @@ def carregar_dados_online():
     return None
 
 # -----------------------------------------------------------------------------
-# MATRIZ E CONSTANTES (INSIRA SEUS NOVOS GRUPOS AQUI)
+# DEFINIÇÃO DAS MATRIZES DE GRUPOS
 # -----------------------------------------------------------------------------
+GRUPOS_24 = {
+    'GRUPO 01': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 21, 23, 24],
+    'GRUPO 02': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 23, 24, 25],
+    'GRUPO 03': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 19, 20, 22, 23, 24],
+    'GRUPO 04': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 22, 23, 24, 25],
+    'GRUPO 05': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 21, 22, 23, 24],
+    'GRUPO 06': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20],
+    'GRUPO 07': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 18, 21, 22, 25],
+    'GRUPO 08': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 17, 19, 20, 21, 22, 25],
+    'GRUPO 09': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 16, 17, 19, 20, 21, 22, 25],
+    'GRUPO 10': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25],
+    'GRUPO 11': [1, 2, 3, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 12': [1, 2, 4, 7, 8, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 13': [1, 2, 5, 6, 7, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 14': [1, 3, 4, 6, 7, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 15': [1, 3, 5, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 16': [1, 4, 5, 7, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 17': [1, 6, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 18': [2, 3, 4, 5, 8, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 19': [2, 3, 4, 5, 9, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 20': [2, 3, 6, 7, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 21': [2, 4, 6, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 22': [3, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 23': [4, 5, 6, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 24': [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
+}
+
 GRUPOS_56 = {
     'GRUPO 01': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 22, 23, 24],
     'GRUPO 02': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 21, 23],
@@ -138,22 +164,113 @@ GRUPOS_56 = {
     'GRUPO 56': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
 }
 
+GRUPOS_69 = {
+    'GRUPO 01': [1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 02': [3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 03': [3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 04': [2, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 05': [2, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 06': [2, 3, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 07': [2, 3, 4, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 08': [2, 3, 4, 5, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 09': [1, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 10': [1, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 11': [1, 3, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 12': [1, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 13': [1, 3, 4, 5, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 14': [1, 2, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 15': [1, 2, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 16': [1, 2, 4, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 17': [1, 2, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 18': [1, 2, 3, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 19': [1, 2, 3, 5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 20': [1, 2, 3, 4, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 21': [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 22': [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 25],
+    'GRUPO 23': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 14, 15, 16, 17, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 24': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25],
+    'GRUPO 25': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25],
+    'GRUPO 26': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 25],
+    'GRUPO 27': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20, 22, 23, 24, 25],
+    'GRUPO 28': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 23, 24, 25],
+    'GRUPO 29': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24],
+    'GRUPO 30': [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 31': [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 18, 19, 20, 22, 23, 24, 25],
+    'GRUPO 32': [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 22, 24, 25],
+    'GRUPO 33': [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 22, 23, 24],
+    'GRUPO 34': [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25],
+    'GRUPO 35': [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24],
+    'GRUPO 36': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 37': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 38': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25],
+    'GRUPO 39': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25],
+    'GRUPO 40': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 41': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 16, 17, 18, 19, 20, 21, 23, 24, 25],
+    'GRUPO 42': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 23, 25],
+    'GRUPO 43': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18, 19, 20, 21, 23, 24, 25],
+    'GRUPO 44': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 25],
+    'GRUPO 45': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 25],
+    'GRUPO 46': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 18, 19, 21, 22, 23, 24, 25],
+    'GRUPO 47': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 19, 20, 22, 23, 24, 25],
+    'GRUPO 48': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24],
+    'GRUPO 49': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 25],
+    'GRUPO 50': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 18, 19, 20, 21, 22, 23, 24],
+    'GRUPO 51': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 19, 21, 22, 23, 24, 25],
+    'GRUPO 52': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 19, 20, 21, 22, 24, 25],
+    'GRUPO 53': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 20, 22, 23, 24, 25],
+    'GRUPO 54': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 21, 22, 24, 25],
+    'GRUPO 55': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 56': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 23, 24, 25],
+    'GRUPO 57': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 25],
+    'GRUPO 58': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 17, 18, 19, 20, 21, 23, 24, 25],
+    'GRUPO 59': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 25],
+    'GRUPO 60': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 21, 23, 25],
+    'GRUPO 61': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 19, 20, 21, 23, 24, 25],
+    'GRUPO 62': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 19, 20, 21, 22, 23, 25],
+    'GRUPO 63': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 23, 25],
+    'GRUPO 64': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 23, 25],
+    'GRUPO 65': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 21, 22, 23, 24, 25],
+    'GRUPO 66': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 21, 22, 24, 25],
+    'GRUPO 67': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 21, 22, 24, 25],
+    'GRUPO 68': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 22, 24],
+    'GRUPO 69': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 24]
+}
+
+# -----------------------------------------------------------------------------
+# SELEÇÃO DINÂMICA DA MATRIZ NA BARRA LATERAL
+# -----------------------------------------------------------------------------
+st.sidebar.header("⚙️ Seleção de Matriz de Grupos")
+opcao_matriz = st.sidebar.selectbox(
+    "Escolha o conjunto de grupos:",
+    [
+        "24 Grupos (19 dezenas)",
+        "56 Grupos (20 dezenas)", 
+        "69 Grupos (22 dezenas)"
+    ]
+)
+
+if "24" in opcao_matriz:
+    GRUPOS_ATIVOS = GRUPOS_24
+elif "69" in opcao_matriz:
+    # Caso implemente o dicionário GRUPOS_69 no futuro
+    GRUPOS_ATIVOS = globals().get('GRUPOS_69', GRUPOS_56) 
+else:
+    GRUPOS_ATIVOS = GRUPOS_56
+
 MOLDURA = {1, 2, 3, 4, 5, 6, 10, 11, 15, 16, 20, 21, 22, 23, 24, 25}
 PRIMOS = {2, 3, 5, 7, 11, 13, 17, 19, 23}
 MESTRAS = {1, 2, 3, 5, 9, 10, 11, 13, 20, 25}
 
 # -----------------------------------------------------------------------------
-# FUNÇÕES AUXILIARES DE CÁLCULO
+# FUNÇÕES AUXILIARES
 # -----------------------------------------------------------------------------
 def seq_max(comb):
     max_c, curr_c = 1, 1
-    for i in range(1, len(comb)):
+    for i in range(1, 15):
         if comb[i] == comb[i - 1] + 1:
             curr_c += 1
-            if curr_c > max_c: 
-                max_c = curr_c
-        else: 
-            curr_c = 1
+            if curr_c > max_c: max_c = curr_c
+        else: curr_c = 1
     return max_c
 
 def calcular_atrasos(resultados_janela):
@@ -175,31 +292,18 @@ def validar_jogo_flexivel(comb, prev_draw,
     acertos = 0
     j_set = set(comb)
     
-    if usar_soma and (160 <= sum(comb) <= 220):
-        acertos += 1
-        
-    if usar_repetidas and (len(j_set.intersection(prev_draw)) in [8, 9, 10, 11]):
-        acertos += 1
-        
-    if usar_moldura and (len(j_set.intersection(MOLDURA)) in [8, 9, 10, 11]):
-        acertos += 1
-        
-    if usar_primos and (len(j_set.intersection(PRIMOS)) in [4, 5, 6, 7]):
-        acertos += 1
-        
-    if usar_mestras and (len(j_set.intersection(MESTRAS)) in [5, 6, 7, 8]):
-        acertos += 1
-        
-    if usar_impares and (sum(1 for x in comb if x % 2 != 0) in [6, 7, 8, 9]):
-        acertos += 1
-        
-    if usar_sequencia and (seq_max(comb) in [3, 4, 5, 6, 7]):
-        acertos += 1
+    if usar_soma and (160 <= sum(comb) <= 220): acertos += 1
+    if usar_repetidas and (len(j_set.intersection(prev_draw)) in [8, 9, 10, 11]): acertos += 1
+    if usar_moldura and (len(j_set.intersection(MOLDURA)) in [8, 9, 10, 11]): acertos += 1
+    if usar_primos and (len(j_set.intersection(PRIMOS)) in [4, 5, 6, 7]): acertos += 1
+    if usar_mestras and (len(j_set.intersection(MESTRAS)) in [5, 6, 7, 8]): acertos += 1
+    if usar_impares and (sum(1 for x in comb if x % 2 != 0) in [6, 7, 8, 9]): acertos += 1
+    if usar_sequencia and (seq_max(comb) in [3, 4, 5, 6, 7]): acertos += 1
 
     return acertos >= min_aprovacoes
 
 # -----------------------------------------------------------------------------
-# INTERFACE PRINCIPAL & GESTÃO DA BASE HISTÓRICA
+# INTERFACE PRINCIPAL
 # -----------------------------------------------------------------------------
 st.title("🎲 Gerador Otimizado Lotofácil Analytics Pro")
 
@@ -272,10 +376,7 @@ if df_historico is not None and not df_historico.empty:
     min_aprovacoes = st.sidebar.slider("Mínimo de regras estatísticas atendidas:", min_value=1, max_value=7, value=5)
 
     last_janela_df = df_historico.iloc[-qtd_janela:].iloc[::-1]
-    janela_concursos = []
-    for _, row in last_janela_df.iterrows():
-        concurso_lista = row[col_bolas].astype(int).tolist()
-        janela_concursos.append(concurso_lista)
+    janela_concursos = [row[col_bolas].astype(int).tolist() for _, row in last_janela_df.iterrows()]
 
     dezenas_mais_atrasadas, mapa_atrasos = calcular_atrasos(janela_concursos)
 
@@ -294,13 +395,11 @@ if df_historico is not None and not df_historico.empty:
         )
     else:
         opcoes_formatadas = [f"Dezena {d} ({mapa_atrasos[d]} concursos sem sair)" for d in dezenas_mais_atrasadas]
-        
         selecao_formatada = st.multiselect(
             "Dezenas ordenadas pelo maior atraso no período selecionado:",
             options=opcoes_formatadas,
             default=opcoes_formatadas[:2]
         )
-        
         dezenas_selecionadas = [int(item.split()[1]) for item in selecao_formatada]
 
     st.write(f"Dezenas Obrigatórias selecionadas: **{dezenas_selecionadas}**")
@@ -322,9 +421,10 @@ if df_historico is not None and not df_historico.empty:
         else:
             prev_draw = set(df_historico.iloc[-1][col_bolas].astype(int).values)
 
+            # 1. Avalia os Top 5 Grupos com base na Matriz Selecionada (GRUPOS_ATIVOS)
             scores = {}
             last_janela_score_df = df_historico.iloc[-qtd_janela:]
-            for g_name, nums in GRUPOS_56.items():
+            for g_name, nums in GRUPOS_ATIVOS.items():
                 set_g = set(nums)
                 c_14_15, c_13, total_hits = 0, 0, 0
                 for _, row in last_janela_score_df.iterrows():
@@ -342,18 +442,18 @@ if df_historico is not None and not df_historico.empty:
 
             jogos_gerados = []
             
+            # 2. Gera as combinações nos melhores grupos selecionados
             for g_name in top_5_names:
-                nums = GRUPOS_56[g_name]
+                nums = GRUPOS_ATIVOS[g_name]
                 set_g = set(nums)
                 
-                # Validação defensiva: Pula grupos com menos de 15 dezenas ou que não contêm as obrigatórias
-                if len(set_g) < 15 or not todas_obrigatorias_absolutas.issubset(set_g):
+                if not todas_obrigatorias_absolutas.issubset(set_g):
                     continue
 
                 dezenas_disponiveis = sorted(list(set_g - todas_obrigatorias_absolutas))
                 vagas_restantes = 15 - len(todas_obrigatorias_absolutas)
                 
-                if vagas_restantes < 0 or len(dezenas_disponiveis) < vagas_restantes:
+                if vagas_restantes < 0:
                     continue
 
                 for comb_parcial in itertools.combinations(dezenas_disponiveis, vagas_restantes):
@@ -396,7 +496,7 @@ if df_historico is not None and not df_historico.empty:
                 )
             else:
                 st.session_state['jogos_gerados_atuais'] = []
-                st.error("⚠️ Nenhum jogo foi gerado. Isso ocorre porque a quantidade de dezenas obrigatórias/fixas selecionadas é muito alta ou restritiva demais para os Top 5 Grupos estatísticos atuais. Tente desmarcar algumas dezenas ou flexibilizar os filtros.")
+                st.error("⚠️ Nenhum jogo foi gerado. A quantidade de dezenas obrigatórias/fixas é muito alta ou restritiva demais para os Top 5 Grupos estatísticos atuais.")
 
     # -----------------------------------------------------------------------------
     # CONFERÊNCIA HISTÓRICA
@@ -404,7 +504,6 @@ if df_historico is not None and not df_historico.empty:
     if 'jogos_gerados_atuais' in st.session_state and st.session_state['jogos_gerados_atuais']:
         st.markdown("---")
         st.subheader("🔍 Conferência Histórica dos Jogos Gerados")
-        st.markdown("Verifique se algum dos jogos gerados acima já obteve **Doze (12)**, **Treze (13)**, **Quatorze (14)** ou **Quinze (15)** acertos no histórico.")
         
         if st.button("🔎 Verificar Premiações no Histórico Completo"):
             premiacoes_encontradas = []
@@ -431,7 +530,8 @@ if df_historico is not None and not df_historico.empty:
                 df_premios.index = df_premios.index + 1
                 st.success(f"🎉 Foram encontradas **{len(premiacoes_encontradas)}** ocorrências de premiações históricas para os jogos gerados!")
                 st.dataframe(df_premios, use_container_width=True)
+                
             else:
-                st.info("ℹ️ Nenhum dos jogos gerados nesta rodada obteve 12, 13, 14 ou 15 acertos no histórico do banco de dados consultado.")
+                st.info("ℹ️ Nenhum dos jogos gerados nesta rodada obteve 12, 13, 14 ou 15 acertos no histórico consultado.")
 else:
     st.warning("⚠️ Por favor, conecte à internet ou faça o upload da sua planilha Excel (.xlsx) da Lotofácil para habilitar o gerador.")
