@@ -5,3 +5,4 @@ openpyxl
 xlsxwriter
 beautifulsoup4
 lxml
+requests
