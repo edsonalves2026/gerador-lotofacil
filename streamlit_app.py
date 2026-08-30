@@ -41,7 +41,7 @@ if not verificar_senha():
     st.stop()
 
 # -----------------------------------------------------------------------------
-# WEB SCRAPING & CARREGAMENTO DE DADOS
+# WEB SCRAPING & CARREGAMENTO DE DADOS ONLINE
 # -----------------------------------------------------------------------------
 @st.cache_data(ttl=3600)
 def carregar_dados_online():
@@ -77,7 +77,7 @@ def carregar_dados_online():
     return None
 
 # -----------------------------------------------------------------------------
-# DEFINIÇÃO DAS MATRIZES DE GRUPOS
+# MATRIZES DE GRUPOS
 # -----------------------------------------------------------------------------
 GRUPOS_24 = {
     'GRUPO 01': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 21, 23, 24],
@@ -306,39 +306,87 @@ def validar_jogo_flexivel(comb, prev_draw,
     return acertos >= min_aprovacoes
 
 # -----------------------------------------------------------------------------
-# INTERFACE PRINCIPAL & GESTÃO DA BASE HISTÓRICA
+# BARRA LATERAL: BASE HISTÓRICA E MODO DE OPERAÇÃO
 # -----------------------------------------------------------------------------
 st.title("🎲 Gerador Otimizado Lotofácil Analytics Pro")
 
-df_historico = carregar_dados_online()
-
+st.sidebar.markdown("---")
 st.sidebar.header("📁 Base Histórica de Dados")
-uploaded_file = st.sidebar.file_uploader("Upload manual de planilha (.xlsx)", type=["xlsx"])
 
-if uploaded_file is not None:
-    try:
-        df_historico = pd.read_excel(uploaded_file, sheet_name='LOTOFÁCIL' if 'LOTOFÁCIL' in pd.ExcelFile(uploaded_file).sheet_names else 0)
-        st.sidebar.success("Base carregada via Upload!")
-    except Exception as e:
-        st.sidebar.error(f"Erro ao carregar planilha: {e}")
-elif df_historico is not None and not df_historico.empty:
-    st.sidebar.success("🌐 Conectado online (`asloterias.com.br`)")
+# Radio button para alternar entre Online e Offline
+modo_base = st.sidebar.radio(
+    "Seletor de Modo:",
+    options=["🌐 Conectado Online", "📂 Modo Offline (Planilha Excel / CSV)"],
+    index=0
+)
+
+df_historico_raw = None
+
+if "Online" in modo_base:
+    df_historico_raw = carregar_dados_online()
+    if df_historico_raw is not None and not df_historico_raw.empty:
+        st.sidebar.success("🌐 Conectado online (`asloterias.com.br`)")
+    else:
+        st.sidebar.error("⚠️ Falha ao conectar online. Carregue uma planilha no Modo Offline.")
 else:
-    st.sidebar.warning("⚠️ Nenhuma base encontrada. Faça o upload para continuar.")
+    uploaded_file = st.sidebar.file_uploader("Upload manual de planilha (.xlsx / .csv)", type=["xlsx", "csv"])
+    if uploaded_file is not None:
+        try:
+            if uploaded_file.name.endswith(".csv"):
+                df_historico_raw = pd.read_csv(uploaded_file)
+            else:
+                df_historico_raw = pd.read_excel(uploaded_file, sheet_name='LOTOFÁCIL' if 'LOTOFÁCIL' in pd.ExcelFile(uploaded_file).sheet_names else 0)
+            st.sidebar.success("📂 Planilha carregada com sucesso!")
+        except Exception as e:
+            st.sidebar.error(f"Erro ao carregar planilha: {e}")
+    else:
+        st.sidebar.info("📌 Aguardando envio de arquivo no Modo Offline...")
 
-if df_historico is not None and not df_historico.empty:
-    col_bolas = [c for c in df_historico.columns if any(t in str(c).lower() for t in ['bola', 'dezena', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'd10', 'd11', 'd12', 'd13', 'd14','d15']) and 'data' not in str(c).lower()][:15]
+# -----------------------------------------------------------------------------
+# SELEÇÃO DO CONCURSO BASE E FILTRAGEM
+# -----------------------------------------------------------------------------
+if df_historico_raw is not None and not df_historico_raw.empty:
+    # Identifica a coluna de concurso e garante ordenação correta
+    col_conc = next((c for c in df_historico_raw.columns if 'concurso' in str(c).lower()), df_historico_raw.columns[0])
+    df_historico_raw = df_historico_raw.sort_values(by=col_conc, ascending=True).reset_index(drop=True)
     
+    # Seletor interativo de concurso base
+    if "Offline" in modo_base:
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🎯 Seleção do Concurso Alvo (Offline)")
+        
+        # Mapeamento formatado para o dropdown: "Concurso: #3774 (28/08/2026)"
+        opcoes_concursos = []
+        for _, row in df_historico_raw.iterrows():
+            c_num = int(row[col_conc])
+            c_data = str(row.get('data', ''))
+            label_data = f" ({c_data})" if c_data and c_data != 'nan' else ""
+            opcoes_concursos.append(f"Concurso: #{c_num}{label_data}")
+        
+        # Inverte para os concursos mais recentes ficarem no topo da lista
+        opcoes_concursos = opcoes_concursos[::-1]
+        
+        escolha_concurso_str = st.sidebar.selectbox("Escolha o concurso de referência:", options=opcoes_concursos)
+        concurso_alvo_num = int(re.search(r'#(\d+)', escolha_concurso_str).group(1))
+        
+        # Filtra a base até o concurso selecionado (corta concursos posteriores para simulação pura)
+        df_historico = df_historico_raw[df_historico_raw[col_conc].astype(int) <= concurso_alvo_num].copy()
+    else:
+        df_historico = df_historico_raw.copy()
+
+    # Identificação das 15 bolas
+    col_bolas = [c for c in df_historico.columns if any(t in str(c).lower() for t in ['bola', 'dezena', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'd10', 'd11', 'd12', 'd13', 'd14','d15']) and 'data' not in str(c).lower()][:15]
+
     ultimo_registro = df_historico.iloc[-1]
-    last_contest_num = int(ultimo_registro['concurso']) if 'concurso' in df_historico.columns else (int(ultimo_registro.iloc[0]) if str(ultimo_registro.iloc[0]).isdigit() else len(df_historico))
+    last_contest_num = int(ultimo_registro[col_conc])
     data_conc = str(ultimo_registro.get('data', ''))
-    data_str = f" ({data_conc})" if data_conc else ""
+    data_str = f" ({data_conc})" if data_conc and data_conc != 'nan' else ""
 
     if len(col_bolas) == 15:
         dezenas_ultimo = [f"{int(ultimo_registro[c]):02d}" for c in col_bolas]
         dezenas_texto = " - ".join(dezenas_ultimo)
         st.sidebar.info(
-            f"📌 **Último Concurso:** #{last_contest_num}{data_str}\n\n"
+            f"📌 **Último Concurso Ref.:** #{last_contest_num}{data_str}\n\n"
             f"🎯 **Dezenas:** `{dezenas_texto}`"
         )
 
@@ -354,7 +402,7 @@ if df_historico is not None and not df_historico.empty:
         step=5
     )
     
-    st.info(f"📊 **Status da Base:** Concurso mais recente: **{last_contest_num}**. Análise calibrada usando os últimos **{qtd_janela}** concursos do histórico.")
+    st.info(f"📊 **Status da Base:** Concurso de referência ativo: **#{last_contest_num}**. Análise calibrada usando os últimos **{qtd_janela}** concursos a partir dessa referência.")
 
     st.sidebar.header("⚙️ Configuração de Filtros Estatísticos")
     usar_soma = st.sidebar.checkbox("Filtro de Soma (160 - 220)", value=True)
@@ -379,13 +427,13 @@ if df_historico is not None and not df_historico.empty:
 
     min_aprovacoes = st.sidebar.slider("Mínimo de regras estatísticas atendidas:", min_value=1, max_value=7, value=5)
 
-    # Dados da janela
+    # Dados da janela histórica
     last_janela_df = df_historico.iloc[-qtd_janela:].iloc[::-1]
     janela_concursos = [row[col_bolas].astype(int).tolist() for _, row in last_janela_df.iterrows()]
     prev_draw = set(janela_concursos[0])
 
     # -------------------------------------------------------------------------
-    # PAINEL DE ANÁLISE HISTÓRICA
+    # PAINEL DE ANÁLISE HISTÓRICA E GERADOR
     # -------------------------------------------------------------------------
     tab_gerador, tab_estatisticas = st.tabs(["🚀 Gerador Otimizado", "📈 Análise Estatística"])
 
@@ -401,7 +449,7 @@ if df_historico is not None and not df_historico.empty:
         
         col_e1, col_e2 = st.columns(2)
         with col_e1:
-            st.markdown("**Frequência na Janela**")
+            st.markdown("**Frequência na Janela Escolhida**")
             st.dataframe(df_freq.sort_values(by="Frequência", ascending=False), use_container_width=True, hide_index=True)
         
         with col_e2:
@@ -417,9 +465,6 @@ if df_historico is not None and not df_historico.empty:
         ])
         st.dataframe(df_trincas, use_container_width=True, hide_index=True)
 
-    # -------------------------------------------------------------------------
-    # GERADOR DE JOGOS
-    # -------------------------------------------------------------------------
     with tab_gerador:
         st.subheader("🎯 Parâmetros de Geração")
         
@@ -430,7 +475,6 @@ if df_historico is not None and not df_historico.empty:
             modo_geracao = st.radio("Método de Seleção dos Grupos:", ["Melhores Desempenhos no Histórico", "Aleatório Controlado"])
 
         if st.button("✨ Gerar Apostas Otimizadas", type="primary"):
-            # Avalia a eficácia dos grupos na janela escolhida
             score_grupos = {}
             for g_nome, g_dezenas in GRUPOS_ATIVOS.items():
                 g_set = set(g_dezenas)
@@ -475,7 +519,6 @@ if df_historico is not None and not df_historico.empty:
             else:
                 st.success(f"✅ {len(jogos_gerados)} jogos gerados com sucesso!")
 
-            # Exibição dos Jogos Gerados
             df_jogos = pd.DataFrame([
                 {
                     "Jogo": f"Jogo {i+1:02d}",
@@ -492,7 +535,6 @@ if df_historico is not None and not df_historico.empty:
 
             st.dataframe(df_jogos, use_container_width=True, hide_index=True)
 
-            # Exportação em TXT / CSV
             texto_exportacao = "\n".join([" ".join([f"{d:02d}" for d in jogo]) for jogo in jogos_gerados])
             st.download_button(
                 label="📥 Baixar Jogos (.txt)",
@@ -500,3 +542,5 @@ if df_historico is not None and not df_historico.empty:
                 file_name=f"jogos_lotofacil_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
                 mime="text/plain"
             )
+else:
+    st.info("👈 Selecione o Modo Conectado Online ou faça o upload de uma planilha no Modo Offline para iniciar.")
