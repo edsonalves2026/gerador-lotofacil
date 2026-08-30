@@ -1,351 +1,101 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import itertools
-from datetime import datetime
 import random
-import requests
-from bs4 import BeautifulSoup
-from collections import Counter
 import re
+import itertools
 
-st.set_page_config(page_title="Gerador Lotofácil Analytics Pro", page_icon="🎲", layout="wide")
+# =============================================================================
+# SEÇÃO DA BARRA LATERAL (MODO ONLINE/OFFLINE E MATRIZES)
+# =============================================================================
+st.sidebar.header("📁 Base Histórica")
 
-# -----------------------------------------------------------------------------
-# AUTENTICAÇÃO / TELA DE LOGIN
-# -----------------------------------------------------------------------------
-def verificar_senha():
-    if "autenticado" not in st.session_state:
-        st.session_state.autenticado = False
-
-    if st.session_state.autenticado:
-        return True
-
-    st.title("🔒 Acesso Restrito")
-    st.subheader("Digite a senha para acessar o gerador da Lotofácil")
-    
-    senha_digitada = st.text_input("Senha:", type="password")
-    
-    if st.button("Entrar"):
-        senha_correta = st.secrets.get("APP_PASSWORD", "123456")
-        
-        if senha_digitada == senha_correta:
-            st.session_state.autenticado = True
-            st.rerun()
-        else:
-            st.error("Senha incorreta!")
-            
-    return False
-
-if not verificar_senha():
-    st.stop()
-
-# -----------------------------------------------------------------------------
-# WEB SCRAPING & CARREGAMENTO DE DADOS
-# -----------------------------------------------------------------------------
-@st.cache_data(ttl=3600)
-def carregar_dados_online():
-    url = "https://asloterias.com.br/lista-de-resultados-da-lotofacil"
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
-    }
-    try:
-        response = requests.get(url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            container = soup.find('div', class_='col-md-8') or soup
-            texto = container.get_text(separator=' ')
-            
-            padrao = re.compile(r'(\d{4})\s*-\s*(\d{2}/\d{2}/\d{4})\s*-\s*' + r'\s+'.join([r'(\d{2})']*15))
-            matches = padrao.findall(texto)
-            
-            dados = []
-            for match in matches:
-                conc = int(match[0])
-                data = match[1]
-                dezenas = [int(x) for x in match[2:]]
-                row = {"concurso": conc, "data": data}
-                for i, d in enumerate(dezenas, 1):
-                    row[f"Bola{i}"] = d
-                dados.append(row)
-            
-            if dados:
-                df = pd.DataFrame(dados)
-                return df.sort_values(by="concurso", ascending=True).reset_index(drop=True)
-    except Exception:
-        pass
-    return None
-
-# -----------------------------------------------------------------------------
-# DEFINIÇÃO DAS MATRIZES DE GRUPOS
-# -----------------------------------------------------------------------------
-GRUPOS_24 = {
-    'GRUPO 01': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 21, 23, 24],
-    'GRUPO 02': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 23, 24, 25],
-    'GRUPO 03': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 19, 20, 22, 23, 24],
-    'GRUPO 04': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 22, 23, 24, 25],
-    'GRUPO 05': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 21, 22, 23, 24],
-    'GRUPO 06': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20],
-    'GRUPO 07': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 18, 21, 22, 25],
-    'GRUPO 08': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 17, 19, 20, 21, 22, 25],
-    'GRUPO 09': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 16, 17, 19, 20, 21, 22, 25],
-    'GRUPO 10': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 18, 19, 20, 21, 23, 24, 25],
-    'GRUPO 11': [1, 2, 3, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 12': [1, 2, 4, 7, 8, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 13': [1, 2, 5, 6, 7, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 14': [1, 3, 4, 6, 7, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 15': [1, 3, 5, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 16': [1, 4, 5, 7, 9, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 17': [1, 6, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 18': [2, 3, 4, 5, 8, 10, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 19': [2, 3, 4, 5, 9, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 20': [2, 3, 6, 7, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 21': [2, 4, 6, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 22': [3, 5, 6, 7, 8, 9, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 23': [4, 5, 6, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 24': [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
-}
-
-GRUPOS_56 = {
-    'GRUPO 01': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 22, 23, 24],
-    'GRUPO 02': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 21, 23],
-    'GRUPO 03': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 19, 20, 21, 22, 24],
-    'GRUPO 04': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 20, 22, 25],
-    'GRUPO 05': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 18, 20, 21, 24, 25],
-    'GRUPO 06': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 19, 21, 22, 23, 24, 25],
-    'GRUPO 07': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 24, 25],
-    'GRUPO 08': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 18, 19, 20, 23, 25],
-    'GRUPO 09': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 20, 21, 22, 23, 24, 25],
-    'GRUPO 10': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 23, 24],
-    'GRUPO 11': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 19, 20, 21, 22, 25],
-    'GRUPO 12': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 19, 21, 23, 24],
-    'GRUPO 13': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 18, 19, 21, 22, 25],
-    'GRUPO 14': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 17, 18, 20, 23, 24, 25],
-    'GRUPO 15': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 17, 19, 20, 22, 23, 25],
-    'GRUPO 16': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 19, 20, 21, 22, 23],
-    'GRUPO 17': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 19, 20, 22, 24, 25],
-    'GRUPO 18': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 17, 18, 19, 20, 21, 22, 24],
-    'GRUPO 19': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 16, 17, 18, 20, 21, 22, 24],
-    'GRUPO 20': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 15, 17, 18, 19, 22, 23, 24, 25],
-    'GRUPO 21': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 16, 17, 18, 21, 22, 23, 24, 25],
-    'GRUPO 22': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 22],
-    'GRUPO 23': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 20, 21, 23, 25],
-    'GRUPO 24': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 21, 22, 24, 25],
-    'GRUPO 25': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 18, 20, 22, 23, 24, 25],
-    'GRUPO 26': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 16, 17, 18, 19, 22, 23, 25],
-    'GRUPO 27': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 16, 17, 20, 21, 22, 23, 24],
-    'GRUPO 28': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 17, 18, 19, 20, 21, 24, 25],
-    'GRUPO 29': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 16, 17, 19, 20, 23, 24, 25],
-    'GRUPO 30': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 16, 18, 19, 21, 22, 23, 24],
-    'GRUPO 31': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 18, 20, 21, 22, 23, 25],
-    'GRUPO 32': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 14, 15, 16, 18, 19, 21, 22, 23, 24],
-    'GRUPO 33': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 34': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 17, 18, 19, 20, 21, 23, 24, 25],
-    'GRUPO 35': [1, 2, 3, 4, 5, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 36': [1, 2, 3, 6, 7, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 37': [1, 2, 3, 6, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 38': [1, 2, 4, 7, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 39': [1, 2, 4, 7, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 40': [1, 2, 5, 6, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 41': [1, 3, 4, 6, 7, 8, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 42': [1, 3, 5, 7, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 43': [1, 3, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 44': [1, 4, 5, 6, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 45': [1, 4, 5, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 46': [1, 5, 6, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 47': [2, 3, 4, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 48': [2, 3, 5, 6, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 49': [2, 3, 5, 7, 8, 9, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 50': [2, 4, 5, 6, 7, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 51': [2, 4, 6, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 52': [2, 5, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 53': [3, 4, 5, 6, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 54': [3, 4, 5, 7, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 55': [3, 4, 6, 7, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 56': [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25]
-}
-
-GRUPOS_69 = {
-    'GRUPO 01': [3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 02': [3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 03': [3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 04': [2, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 05': [2, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 06': [2, 3, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 07': [2, 3, 4, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 08': [2, 3, 4, 5, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 09': [1, 4, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 10': [1, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 11': [1, 3, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 12': [1, 3, 4, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 13': [1, 3, 4, 5, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 14': [1, 2, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 15': [1, 2, 5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 16': [1, 2, 4, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 17': [1, 2, 4, 5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 18': [1, 2, 3, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 19': [1, 2, 3, 5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 20': [1, 2, 3, 4, 6, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 21': [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 22': [1, 2, 3, 4, 5, 6, 7, 8, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 25],
-    'GRUPO 23': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 14, 15, 16, 17, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 24': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25],
-    'GRUPO 25': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24, 25],
-    'GRUPO 26': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 14, 15, 16, 17, 18, 19, 20, 22, 23, 24, 25],
-    'GRUPO 27': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20, 22, 23, 24, 25],
-    'GRUPO 28': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 20, 22, 23, 24, 25],
-    'GRUPO 29': [1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23, 24],
-    'GRUPO 30': [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 31': [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 18, 19, 20, 22, 23, 24, 25],
-    'GRUPO 32': [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 22, 24, 25],
-    'GRUPO 33': [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 22, 23, 24],
-    'GRUPO 34': [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 21, 22, 23, 24, 25],
-    'GRUPO 35': [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24],
-    'GRUPO 36': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 37': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 38': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 16, 17, 18, 19, 20, 21, 23, 24, 25],
-    'GRUPO 39': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 15, 16, 17, 18, 19, 20, 21, 22, 23, 25],
-    'GRUPO 40': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 41': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 16, 17, 18, 19, 20, 21, 23, 24, 25],
-    'GRUPO 42': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 16, 17, 18, 19, 20, 21, 22, 23, 25],
-    'GRUPO 43': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18, 19, 20, 21, 23, 24, 25],
-    'GRUPO 44': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 17, 18, 19, 20, 21, 22, 23, 25],
-    'GRUPO 45': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 23, 25],
-    'GRUPO 46': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 18, 19, 21, 22, 23, 24, 25],
-    'GRUPO 47': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 19, 20, 22, 23, 24, 25],
-    'GRUPO 48': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 20, 21, 22, 23, 24],
-    'GRUPO 49': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 22, 24, 25],
-    'GRUPO 50': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 18, 19, 20, 21, 22, 23, 24],
-    'GRUPO 51': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 19, 21, 22, 23, 24, 25],
-    'GRUPO 52': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 19, 20, 21, 22, 24, 25],
-    'GRUPO 53': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 20, 22, 23, 24, 25],
-    'GRUPO 54': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 15, 16, 17, 18, 19, 21, 22, 24, 25],
-    'GRUPO 55': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 17, 18, 19, 20, 21, 22, 23, 24, 25],
-    'GRUPO 56': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 23, 24, 25],
-    'GRUPO 57': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 20, 21, 22, 23, 25],
-    'GRUPO 58': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 17, 18, 19, 20, 21, 23, 24, 25],
-    'GRUPO 59': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 17, 18, 19, 20, 21, 22, 23, 25],
-    'GRUPO 60': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 18, 19, 20, 21, 23, 25],
-    'GRUPO 61': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 19, 20, 21, 23, 24, 25],
-    'GRUPO 62': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 17, 18, 19, 20, 21, 22, 23, 25],
-    'GRUPO 63': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21, 23, 25],
-    'GRUPO 64': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 17, 18, 19, 20, 21, 23, 25],
-    'GRUPO 65': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 20, 21, 22, 23, 24, 25],
-    'GRUPO 66': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 21, 22, 24, 25],
-    'GRUPO 67': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 21, 22, 24, 25],
-    'GRUPO 68': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 21, 22, 24],
-    'GRUPO 69': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 22, 23, 24]
-}
-
-# -----------------------------------------------------------------------------
-# SELEÇÃO DINÂMICA DA MATRIZ NA BARRA LATERAL
-# -----------------------------------------------------------------------------
-st.sidebar.header("⚙️ Seleção de Matriz de Grupos")
-opcao_matriz = st.sidebar.selectbox(
-    "Escolha o conjunto de grupos:",
-    ["24 Grupos (19 dezenas)", "56 Grupos (20 dezenas)", "69 Grupos (22 dezenas)"]
+# Opção de escolha entre Online e Offline
+modo_operacao = st.sidebar.radio(
+    "Modo de Operação:",
+    ["🌐 Conectado Online", "📂 Modo Offline (Planilha Excel)"],
+    index=0
 )
 
-if "24" in opcao_matriz:
-    GRUPOS_ATIVOS = GRUPOS_24
-elif "56" in opcao_matriz:
-    GRUPOS_ATIVOS = GRUPOS_56
+df_historico_raw = None
+
+if modo_operacao == "🌐 Conectado Online":
+    # Sua função existente de carregamento online
+    df_historico_raw = carregar_dados()
+    if df_historico_raw is not None and not df_historico_raw.empty:
+        st.sidebar.success("🌐 Conectado online (`asloterias`)")
+    else:
+        st.sidebar.warning("Não foi possível carregar online. Tente o modo offline.")
 else:
-    GRUPOS_ATIVOS = GRUPOS_69
+    uploaded_file = st.sidebar.file_uploader("Upload manual da planilha", type=["csv", "xlsx"])
+    if uploaded_file is not None:
+        try:
+            df_historico_raw = pd.read_excel(uploaded_file) if uploaded_file.name.endswith('.xlsx') else pd.read_csv(uploaded_file)
+            st.sidebar.success("Base carregada via Upload!")
+        except Exception as e:
+            st.sidebar.error(f"Erro no upload: {e}")
+    else:
+        st.sidebar.info("Carregue uma planilha Excel ou CSV para iniciar no modo offline.")
 
-MOLDURA = {1, 2, 3, 4, 5, 6, 10, 11, 15, 16, 20, 21, 22, 23, 24, 25}
-PRIMOS = {2, 3, 5, 7, 11, 13, 17, 19, 23}
-MESTRAS = {1, 2, 3, 5, 9, 10, 11, 13, 20, 25}
+# Extração dos sorteios completos
+sorteios_historico_completos_bruto = extrair_sorteios_historicos(df_historico_raw) if df_historico_raw is not None and not df_historico_raw.empty else []
 
-# -----------------------------------------------------------------------------
-# FUNÇÕES AUXILIARES DE CÁLCULO
-# -----------------------------------------------------------------------------
-def seq_max(comb):
-    max_c, curr_c = 1, 1
-    for i in range(1, 15):
-        if comb[i] == comb[i - 1] + 1:
-            curr_c += 1
-            if curr_c > max_c: max_c = curr_c
-        else: curr_c = 1
-    return max_c
+# SELETOR INTERATIVO DE CONCURSO (CORTE DE REFERÊNCIA)
+df_historico = None
+sorteios_historico_completos = []
 
-def calcular_atrasos(resultados_janela):
-    atrasos = {}
-    for dezena in range(1, 26):
-        atraso = 0
-        for concurso in resultados_janela:
-            if dezena in concurso:
-                break
-            atraso += 1
-        atrasos[dezena] = atraso
+if df_historico_raw is not None and not df_historico_raw.empty and sorteios_historico_completos_bruto:
+    lista_concursos_disponiveis = []
+    for idx_c, _ in enumerate(sorteios_historico_completos_bruto):
+        conc_num = df_historico_raw.iloc[idx_c].get('concurso', idx_c + 1)
+        data_conc = df_historico_raw.iloc[idx_c].get('data', '')
+        label_c = f"Concurso #{conc_num}" + (f" ({data_conc})" if data_conc else "")
+        lista_concursos_disponiveis.append((conc_num, idx_c, label_c))
     
-    dezenas_ordenadas = sorted(atrasos.keys(), key=lambda d: atrasos[d], reverse=True)
-    return dezenas_ordenadas, atrasos
-
-def obter_top_trincas(resultados_janela, top_n=10):
-    contador_trincas = Counter()
-    for concurso in resultados_janela:
-        for trinca in itertools.combinations(sorted(concurso), 3):
-            contador_trincas[trinca] += 1
-    return contador_trincas.most_common(top_n)
-
-def validar_jogo_flexivel(comb, prev_draw, 
-                           usar_soma, usar_repetidas, usar_moldura, usar_primos, 
-                           usar_mestras, usar_impares, usar_sequencia, min_aprovacoes):
-    acertos = 0
-    j_set = set(comb)
+    labels_opcoes = [item[2] for item in lista_concursos_disponiveis]
+    escolha_concurso_str = st.sidebar.selectbox(
+        "🎯 Definir Concurso de Referência (Corte):",
+        options=labels_opcoes,
+        index=len(labels_opcoes) - 1 # Padrão é sempre o mais recente
+    )
     
-    if usar_soma and (160 <= sum(comb) <= 220): acertos += 1
-    if usar_repetidas and (len(j_set.intersection(prev_draw)) in [8, 9, 10, 11]): acertos += 1
-    if usar_moldura and (len(j_set.intersection(MOLDURA)) in [8, 9, 10, 11]): acertos += 1
-    if usar_primos and (len(j_set.intersection(PRIMOS)) in [4, 5, 6, 7]): acertos += 1
-    if usar_mestras and (len(j_set.intersection(MESTRAS)) in [5, 6, 7, 8]): acertos += 1
-    if usar_impares and (sum(1 for x in comb if x % 2 != 0) in [6, 7, 8, 9]): acertos += 1
-    if usar_sequencia and (seq_max(comb) in [3, 4, 5, 6, 7]): acertos += 1
-
-    return acertos >= min_aprovacoes
-
-# -----------------------------------------------------------------------------
-# INTERFACE PRINCIPAL & GESTÃO DA BASE HISTÓRICA
-# -----------------------------------------------------------------------------
-st.title("🎲 Gerador Otimizado Lotofácil Analytics Pro")
-
-df_historico = carregar_dados_online()
-
-st.sidebar.header("📁 Base Histórica de Dados")
-uploaded_file = st.sidebar.file_uploader("Upload manual de planilha (.xlsx)", type=["xlsx"])
-
-if uploaded_file is not None:
-    try:
-        df_historico = pd.read_excel(uploaded_file, sheet_name='LOTOFÁCIL' if 'LOTOFÁCIL' in pd.ExcelFile(uploaded_file).sheet_names else 0)
-        st.sidebar.success("Base carregada via Upload!")
-    except Exception as e:
-        st.sidebar.error(f"Erro ao carregar planilha: {e}")
-elif df_historico is not None and not df_historico.empty:
-    st.sidebar.success("🌐 Conectado online (`asloterias.com.br`)")
-else:
-    st.sidebar.warning("⚠️ Nenhuma base encontrada. Faça o upload para continuar.")
-
-if df_historico is not None and not df_historico.empty:
-    col_bolas = [c for c in df_historico.columns if any(t in str(c).lower() for t in ['bola', 'dezena', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'd10', 'd11', 'd12', 'd13', 'd14','d15']) and 'data' not in str(c).lower()][:15]
+    indice_selecionado = next(item[1] for item in lista_concursos_disponiveis if item[2] == escolha_concurso_str)
+    
+    # Corta o dataframe e os sorteios até a escolha do usuário
+    df_historico = df_historico_raw.iloc[:indice_selecionado + 1].copy()
+    sorteios_historico_completos = sorteios_historico_completos_bruto[:indice_selecionado + 1]
     
     ultimo_registro = df_historico.iloc[-1]
-    last_contest_num = int(ultimo_registro['concurso']) if 'concurso' in df_historico.columns else (int(ultimo_registro.iloc[0]) if str(ultimo_registro.iloc[0]).isdigit() else len(df_historico))
-    data_conc = str(ultimo_registro.get('data', ''))
+    conc_num = ultimo_registro.get('concurso', 'N/A')
+    data_conc = ultimo_registro.get('data', '')
     data_str = f" ({data_conc})" if data_conc else ""
-
-    if len(col_bolas) == 15:
-        dezenas_ultimo = [f"{int(ultimo_registro[c]):02d}" for c in col_bolas]
+    last_contest_num = conc_num
+    
+    cols_dezenas = [c for c in df_historico.columns if any(t in str(c).lower() for t in ['bola', 'dezena', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'd10', 'd11', 'd12', 'd13', 'd14', 'd15']) and 'data' not in str(c).lower()][:15]
+    col_bolas = cols_dezenas # Define a referência das colunas de dezenas para o resto do script
+    
+    if len(cols_dezenas) == 15:
+        dezenas_ultimo = [f"{int(ultimo_registro[c]):02d}" for c in cols_dezenas]
         dezenas_texto = " - ".join(dezenas_ultimo)
         st.sidebar.info(
-            f"📌 **Último Concurso:** #{last_contest_num}{data_str}\n\n"
+            f"📌 **Concurso Referência:** #{conc_num}{data_str}\n\n"
             f"🎯 **Dezenas:** `{dezenas_texto}`"
         )
+    else:
+        st.sidebar.info(f"📌 **Concurso Referência:** #{conc_num}{data_str}")
 
-    # Configuração de Filtros e Janela
+ultimo_sorteio = sorteios_historico_completos[-1] if sorteios_historico_completos else []
+
+# =============================================================================
+# CONFIGURAÇÃO DE FILTROS E JANELA (CORPO PRINCIPAL)
+# =============================================================================
+if df_historico is None or df_historico.empty:
+    st.warning("⚠️ Aguardando carregamento dos dados para iniciar as análises.")
+else:
     st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Escopo da Análise")
     total_concursos_base = len(df_historico)
+    
     qtd_janela = st.sidebar.number_input(
         "Quantidade de concursos para recalibragem dos grupos:", 
         min_value=10, 
@@ -379,7 +129,7 @@ if df_historico is not None and not df_historico.empty:
 
     min_aprovacoes = st.sidebar.slider("Mínimo de regras estatísticas atendidas:", min_value=1, max_value=7, value=5)
 
-    # Dados da janela
+    # Dados da janela cortada
     last_janela_df = df_historico.iloc[-qtd_janela:].iloc[::-1]
     janela_concursos = [row[col_bolas].astype(int).tolist() for _, row in last_janela_df.iterrows()]
 
