@@ -282,10 +282,13 @@ def calcular_atrasos(resultados_janela):
     dezenas_ordenadas = sorted(atrasos.keys(), key=lambda d: atrasos[d], reverse=True)
     return dezenas_ordenadas, atrasos
 
-def obter_top_trincas(resultados_janela, top_n=10):
+def obter_top_trincas_matriz(resultados_janela, dezenas_matriz, top_n=10):
     contador_trincas = Counter()
+    dezenas_set = set(dezenas_matriz)
     for concurso in resultados_janela:
-        for trinca in itertools.combinations(sorted(concurso), 3):
+        # Considera apenas as dezenas presentas na matriz ativa
+        dezenas_filtradas = sorted(list(set(concurso).intersection(dezenas_set)))
+        for trinca in itertools.combinations(dezenas_filtradas, 3):
             contador_trincas[trinca] += 1
     return contador_trincas.most_common(top_n)
 
@@ -313,7 +316,6 @@ st.title("🎲 Gerador Otimizado Lotofácil Analytics Pro")
 st.sidebar.markdown("---")
 st.sidebar.header("📁 Base Histórica de Dados")
 
-# Radio button para alternar entre Online e Offline
 modo_base = st.sidebar.radio(
     "Seletor de Modo:",
     options=["🌐 Conectado Online", "📂 Modo Offline (Planilha Excel / CSV)"],
@@ -346,16 +348,13 @@ else:
 # SELEÇÃO DO CONCURSO BASE E FILTRAGEM
 # -----------------------------------------------------------------------------
 if df_historico_raw is not None and not df_historico_raw.empty:
-    # Identifica a coluna de concurso e garante ordenação correta
     col_conc = next((c for c in df_historico_raw.columns if 'concurso' in str(c).lower()), df_historico_raw.columns[0])
     df_historico_raw = df_historico_raw.sort_values(by=col_conc, ascending=True).reset_index(drop=True)
     
-    # Seletor interativo de concurso base
     if "Offline" in modo_base:
         st.sidebar.markdown("---")
         st.sidebar.subheader("🎯 Seleção do Concurso Alvo (Offline)")
         
-        # Mapeamento formatado para o dropdown: "Concurso: #3774 (28/08/2026)"
         opcoes_concursos = []
         for _, row in df_historico_raw.iterrows():
             c_num = int(row[col_conc])
@@ -363,18 +362,15 @@ if df_historico_raw is not None and not df_historico_raw.empty:
             label_data = f" ({c_data})" if c_data and c_data != 'nan' else ""
             opcoes_concursos.append(f"Concurso: #{c_num}{label_data}")
         
-        # Inverte para os concursos mais recentes ficarem no topo da lista
         opcoes_concursos = opcoes_concursos[::-1]
         
         escolha_concurso_str = st.sidebar.selectbox("Escolha o concurso de referência:", options=opcoes_concursos)
         concurso_alvo_num = int(re.search(r'#(\d+)', escolha_concurso_str).group(1))
         
-        # Filtra a base até o concurso selecionado (corta concursos posteriores para simulação pura)
         df_historico = df_historico_raw[df_historico_raw[col_conc].astype(int) <= concurso_alvo_num].copy()
     else:
         df_historico = df_historico_raw.copy()
 
-    # Identificação das 15 bolas
     col_bolas = [c for c in df_historico.columns if any(t in str(c).lower() for t in ['bola', 'dezena', 'd1', 'd2', 'd3', 'd4', 'd5', 'd6', 'd7', 'd8', 'd9', 'd10', 'd11', 'd12', 'd13', 'd14','d15']) and 'data' not in str(c).lower()][:15]
 
     ultimo_registro = df_historico.iloc[-1]
@@ -390,7 +386,6 @@ if df_historico_raw is not None and not df_historico_raw.empty:
             f"🎯 **Dezenas:** `{dezenas_texto}`"
         )
 
-    # Configuração de Filtros e Janela
     st.sidebar.markdown("---")
     st.sidebar.header("⚙️ Escopo da Análise")
     total_concursos_base = len(df_historico)
@@ -427,7 +422,6 @@ if df_historico_raw is not None and not df_historico_raw.empty:
 
     min_aprovacoes = st.sidebar.slider("Mínimo de regras estatísticas atendidas:", min_value=1, max_value=7, value=5)
 
-    # Dados da janela histórica
     last_janela_df = df_historico.iloc[-qtd_janela:].iloc[::-1]
     janela_concursos = [row[col_bolas].astype(int).tolist() for _, row in last_janela_df.iterrows()]
     prev_draw = set(janela_concursos[0])
@@ -436,6 +430,9 @@ if df_historico_raw is not None and not df_historico_raw.empty:
     # PAINEL DE ANÁLISE HISTÓRICA E GERADOR
     # -------------------------------------------------------------------------
     tab_gerador, tab_estatisticas = st.tabs(["🚀 Gerador Otimizado", "📈 Análise Estatística"])
+
+    # Obter universo de dezenas cobertas pela matriz ativa
+    dezenas_matriz_ativa = list(set(d for g in GRUPOS_ATIVOS.values() for d in g))
 
     with tab_estatisticas:
         st.subheader("📊 Frequência e Atraso das Dezenas")
@@ -457,8 +454,10 @@ if df_historico_raw is not None and not df_historico_raw.empty:
             st.dataframe(df_freq.sort_values(by="Atraso Atual", ascending=False), use_container_width=True, hide_index=True)
 
         st.markdown("---")
-        st.subheader("🔥 Top Trincas Mais Frequentes")
-        top_trincas = obter_top_trincas(janela_concursos)
+        st.subheader(f"🔥 Top Trincas Mais Frequentes ({opcao_matriz})")
+        
+        # Ajuste 1: As trincas agora consideram estritamente o universo de dezenas da matriz ativa
+        top_trincas = obter_top_trincas_matriz(janela_concursos, dezenas_matriz_ativa)
         df_trincas = pd.DataFrame([
             {"Trinca": f"{t[0]:02d} - {t[1]:02d} - {t[2]:02d}", "Ocorrências": occ}
             for t, occ in top_trincas
@@ -472,7 +471,15 @@ if df_historico_raw is not None and not df_historico_raw.empty:
         with col_p1:
             qtd_jogos = st.number_input("Quantidade de jogos a gerar:", min_value=1, max_value=500, value=10, step=1)
         with col_p2:
-            modo_geracao = st.radio("Método de Seleção dos Grupos:", ["Melhores Desempenhos no Histórico", "Aleatório Controlado"])
+            # Ajuste 2: Adicionada opção de gerar via Top Trincas Frequentes
+            modo_geracao = st.radio(
+                "Método de Seleção dos Grupos / Otimização:",
+                [
+                    "Melhores Desempenhos no Histórico", 
+                    "Otimizado por Top Trincas Frequentes",
+                    "Aleatório Controlado"
+                ]
+            )
 
         if st.button("✨ Gerar Apostas Otimizadas", type="primary"):
             score_grupos = {}
@@ -482,8 +489,10 @@ if df_historico_raw is not None and not df_historico_raw.empty:
                 score_grupos[g_nome] = acertos_totais
 
             grupos_ordenados = sorted(score_grupos.keys(), key=lambda g: score_grupos[g], reverse=True)
+            top_trincas_lista = [t[0] for t in obter_top_trincas_matriz(janela_concursos, dezenas_matriz_ativa, top_n=5)]
 
             jogos_gerados = []
+            info_grupos_origem = []
             tentativas_max = 50000
             tentativa = 0
 
@@ -492,6 +501,11 @@ if df_historico_raw is not None and not df_historico_raw.empty:
                 
                 if modo_geracao == "Melhores Desempenhos no Histórico":
                     grupo_escolhido = random.choice(grupos_ordenados[:10])
+                elif modo_geracao == "Otimizado por Top Trincas Frequentes":
+                    # Seleciona grupos que contenham pelo menos uma das trincas mais fortes
+                    trinca_alvo = set(random.choice(top_trincas_lista))
+                    grupos_com_trinca = [g for g, dezenas in GRUPOS_ATIVOS.items() if trinca_alvo.issubset(set(dezenas))]
+                    grupo_escolhido = random.choice(grupos_com_trinca) if grupos_com_trinca else random.choice(grupos_ordenados)
                 else:
                     grupo_escolhido = random.choice(list(GRUPOS_ATIVOS.keys()))
 
@@ -513,15 +527,26 @@ if df_historico_raw is not None and not df_historico_raw.empty:
                                          usar_moldura, usar_primos, usar_mestras, 
                                          usar_impares, usar_sequencia, min_aprovacoes):
                     jogos_gerados.append(comb)
+                    info_grupos_origem.append(grupo_escolhido)
+
+            # Salva na sessão para ser consumido na Conferência Histórica
+            st.session_state['jogos_gerados_atuais'] = jogos_gerados
+            st.session_state['jogos_gerados_grupos'] = info_grupos_origem
 
             if len(jogos_gerados) < qtd_jogos:
                 st.warning(f"⚠️ Foram gerados {len(jogos_gerados)} jogos atendendo aos critérios flexíveis dentro do limite de buscas.")
             else:
                 st.success(f"✅ {len(jogos_gerados)} jogos gerados com sucesso!")
 
+        # Exibição dos Jogos Gerados
+        if 'jogos_gerados_atuais' in st.session_state and st.session_state['jogos_gerados_atuais']:
+            jogos_atuais = st.session_state['jogos_gerados_atuais']
+            grupos_atuais = st.session_state.get('jogos_gerados_grupos', ['N/A'] * len(jogos_atuais))
+
             df_jogos = pd.DataFrame([
                 {
                     "Jogo": f"Jogo {i+1:02d}",
+                    "Grupo Origem": grupos_atuais[i],  # Ajuste 2: Nome do Grupo adicionado na tabela
                     "Dezenas": " - ".join([f"{d:02d}" for d in jogo]),
                     "Soma": sum(jogo),
                     "Repetidas": len(set(jogo).intersection(prev_draw)),
@@ -530,17 +555,52 @@ if df_historico_raw is not None and not df_historico_raw.empty:
                     "Ímpares": sum(1 for x in jogo if x % 2 != 0),
                     "Seq. Máx": seq_max(jogo)
                 }
-                for i, jogo in enumerate(jogos_gerados)
+                for i, jogo in enumerate(jogos_atuais)
             ])
 
             st.dataframe(df_jogos, use_container_width=True, hide_index=True)
 
-            texto_exportacao = "\n".join([" ".join([f"{d:02d}" for d in jogo]) for jogo in jogos_gerados])
+            texto_exportacao = "\n".join([" ".join([f"{d:02d}" for d in jogo]) for jogo in jogos_atuais])
             st.download_button(
                 label="📥 Baixar Jogos (.txt)",
                 data=texto_exportacao,
                 file_name=f"jogos_lotofacil_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
                 mime="text/plain"
             )
+
+        # -----------------------------------------------------------------------------
+        # Ajuste 3: CONFERÊNCIA HISTÓRICA DOS JOGOS GERADOS INTEGRADA
+        # -----------------------------------------------------------------------------
+        if 'jogos_gerados_atuais' in st.session_state and st.session_state['jogos_gerados_atuais']:
+            st.markdown("---")
+            st.subheader("🔍 Conferência Histórica dos Jogos Gerados")
+            
+            if st.button("🔎 Verificar Premiações no Histórico Completo"):
+                premiacoes_encontradas = []
+                
+                for idx_jogo, jogo in enumerate(st.session_state['jogos_gerados_atuais'], start=1):
+                    set_jogo = set(jogo)
+                    for _, row in df_historico.iterrows():
+                        sorteio_num = row.get(col_conc, 'N/A')
+                        sorteio_dezenas = set(row[col_bolas].astype(int).values)
+                        acertos = len(set_jogo.intersection(sorteio_dezenas))
+                        
+                        if acertos >= 12:
+                            tipo = "Doze (12 pts)" if acertos == 12 else ("Treze (13 pts)" if acertos == 13 else ("QUATORZE (14 pts)" if acertos == 14 else "QUINZE (15 pts)"))
+                            premiacoes_encontradas.append({
+                                "Jogo Gerado Nº": idx_jogo,
+                                "Dezenas do Jogo": ", ".join(map(str, jogo)),
+                                "Tipo de Prêmio": tipo,
+                                "Concurso": sorteio_num,
+                                "Dezenas Sorteadas": ", ".join(map(str, sorted(list(sorteio_dezenas))))
+                            })
+
+                if premiacoes_encontradas:
+                    df_premios = pd.DataFrame(premiacoes_encontradas)
+                    df_premios.index = df_premios.index + 1
+                    st.success(f"🎉 Foram encontradas **{len(premiacoes_encontradas)}** ocorrências de premiações históricas para os jogos gerados!")
+                    st.dataframe(df_premios, use_container_width=True)
+                else:
+                    st.info("ℹ️ Nenhum dos jogos gerados nesta rodada obteve 12, 13, 14 ou 15 acertos no histórico consultado.")
 else:
     st.info("👈 Selecione o Modo Conectado Online ou faça o upload de uma planilha no Modo Offline para iniciar.")
