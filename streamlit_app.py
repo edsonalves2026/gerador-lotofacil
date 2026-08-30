@@ -243,10 +243,15 @@ GRUPOS_69 = {
 st.sidebar.header("⚙️ Seleção de Matriz de Grupos")
 opcao_matriz = st.sidebar.selectbox(
     "Escolha o conjunto de grupos:",
-    ["24 Grupos (19 dezenas)", "56 Grupos (20 dezenas)"]
+    ["24 Grupos (19 dezenas)", "56 Grupos (20 dezenas)", "69 Grupos (23 dezenas)"]
 )
 
-GRUPOS_ATIVOS = GRUPOS_24 if "24" in opcao_matriz else GRUPOS_56
+if "24" in opcao_matriz:
+    GRUPOS_ATIVOS = GRUPOS_24
+elif "56" in opcao_matriz:
+    GRUPOS_ATIVOS = GRUPOS_56
+else:
+    GRUPOS_ATIVOS = GRUPOS_69
 
 MOLDURA = {1, 2, 3, 4, 5, 6, 10, 11, 15, 16, 20, 21, 22, 23, 24, 25}
 PRIMOS = {2, 3, 5, 7, 11, 13, 17, 19, 23}
@@ -421,11 +426,10 @@ if df_historico is not None and not df_historico.empty:
         for t in top_trincas_list
     ]
     
-    trinca_escolhida_str = st.selectbox("Selecione uma Trinca para incluir obrigatoriamente nos palpites:", opções_trincas if 'opções_trincas' in locals() else opcoes_trincas)
+    trinca_escolhida_str = st.selectbox("Selecione uma Trinca para incluir obrigatoriamente nos palpites:", opcoes_trincas)
     
     dezenas_trinca = []
     if trinca_escolhida_str != "Nenhuma trinca selecionada":
-        # Extrai os números da string formatada
         match_trinca = re.search(r'\[(\d+),\s*(\d+),\s*(\d+)\]', trinca_escolhida_str)
         if match_trinca:
             dezenas_trinca = [int(match_trinca.group(1)), int(match_trinca.group(2)), int(match_trinca.group(3))]
@@ -454,7 +458,6 @@ if df_historico is not None and not df_historico.empty:
         )
         dezenas_selecionadas = [int(item.split()[1]) for item in selecao_formatada]
 
-    # União de todas as obrigatórias: Selecionadas + Fixas + Trinca selecionada
     dezenas_obrigatorias_set = set(dezenas_selecionadas)
     dezenas_fixas_set = set(dezenas_fixas_selecionadas) if usar_fixas else set()
     dezenas_trinca_set = set(dezenas_trinca)
@@ -550,13 +553,13 @@ if df_historico is not None and not df_historico.empty:
                     if acertos >= 12:
                         tipo = "Doze (12 pts)" if acertos == 12 else ("Treze (13 pts)" if acertos == 13 else ("QUATORZE (14 pts)" if acertos == 14 else "QUINZE (15 pts)"))
                         premiacoes_encontradas.append({
-                            "Jogo Gerado N°": idx_jogo,
+                            "Jogo Gerado Nº": idx_jogo,
                             "Dezenas do Jogo": ", ".join(map(str, jogo)),
                             "Tipo de Prêmio": tipo,
                             "Concurso": sorteio_num,
                             "Dezenas Sorteadas": ", ".join(map(str, sorted(list(sorteio_dezenas))))
                         })
-            
+
             if premiacoes_encontradas:
                 df_premios = pd.DataFrame(premiacoes_encontradas)
                 df_premios.index = df_premios.index + 1
@@ -564,5 +567,3 @@ if df_historico is not None and not df_historico.empty:
                 st.dataframe(df_premios, use_container_width=True)
             else:
                 st.info("ℹ️ Nenhum dos jogos gerados nesta rodada obteve 12, 13, 14 ou 15 acertos no histórico consultado.")
-else:
-    st.warning("⚠️ Por favor, conecte à internet ou faça o upload da sua planilha Excel (.xlsx) da Lotofácil para habilitar o gerador.")
