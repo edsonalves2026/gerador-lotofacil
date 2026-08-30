@@ -166,7 +166,7 @@ GRUPOS_56 = {
 }
 
 GRUPOS_69 = {
-    'GRUPO 01': [1, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
+    'GRUPO 01': [3, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
     'GRUPO 02': [3, 4, 5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
     'GRUPO 03': [3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
     'GRUPO 04': [2, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25],
@@ -243,7 +243,7 @@ GRUPOS_69 = {
 st.sidebar.header("⚙️ Seleção de Matriz de Grupos")
 opcao_matriz = st.sidebar.selectbox(
     "Escolha o conjunto de grupos:",
-    ["24 Grupos (19 dezenas)", "56 Grupos (20 dezenas)", "69 Grupos (23 dezenas)"]
+    ["24 Grupos (19 dezenas)", "56 Grupos (20 dezenas)", "69 Grupos (22 dezenas)"]
 )
 
 if "24" in opcao_matriz:
