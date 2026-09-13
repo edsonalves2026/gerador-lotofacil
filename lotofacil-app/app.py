@@ -804,7 +804,7 @@ if df_historico_raw is not None and not df_historico_raw.empty:
             else:
                 with st.spinner("Gerando..."):
                     score_grupos = {
-                        g: sum(len(set(gd) & c) for c in janela_concursos)
+                       g: sum(len(set(gd) & set(c)) for c in janela_concursos)
                         for g, gd in GRUPOS_ATIVOS.items()
                     }
                     grupos_ord = sorted(score_grupos, key=score_grupos.get, reverse=True)
