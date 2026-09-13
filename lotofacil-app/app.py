@@ -233,6 +233,7 @@ GRUPOS_69 = {
 def verificar_senha():
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
+
     if st.session_state.autenticado:
         return True
 
@@ -241,19 +242,22 @@ def verificar_senha():
     senha_digitada = st.text_input("Senha:", type="password")
 
     if st.button("Entrar"):
-        if "APP_PASSWORD" not in st.secrets:
-            st.error(
-                "⚠️ Configuração ausente: defina `APP_PASSWORD` em "
-                "`.streamlit/secrets.toml` antes de usar o app."
-            )
-            return False
-        if senha_digitada == st.secrets["APP_PASSWORD"]:
-            st.session_state.autenticado = True
-            st.rerun()
-        else:
-            st.error("Senha incorreta!")
-    return False
+        try:
+            senha_correta = st.secrets.get("APP_PASSWORD")
+            if not senha_correta:
+                st.error("⚠️ Configuração ausente: defina `APP_PASSWORD` no arquivo `.streamlit/secrets.toml`.")
+                return False
 
+            if senha_digitada == senha_correta:
+                st.session_state.autenticado = True
+                st.rerun()
+            else:
+                st.error("Senha incorreta!")
+        except Exception:
+            st.error("⚠️ O arquivo `.streamlit/secrets.toml` não foi encontrado ou está mal formatado.")
+            return False
+
+    return False
 
 if not verificar_senha():
     st.stop()
