@@ -979,7 +979,7 @@ if df_historico_raw is not None and not df_historico_raw.empty:
         jan = treino_df.iloc[-min(25, len(treino_df)):].iloc[::-1]
         jl = [row[cols].astype(int).tolist() for _, row in jan.iterrows()]
         dz = sorted(set(d for g in grupos.values() for d in g))
-        score = {g: sum(len(set(gd) & c) for c in jl) for g, gd in grupos.items()}
+        score = {g: sum(len(set(gd) & set(c)) for c in jl) for g, gd in grupos.items()}
         ranked = sorted(score, key=score.get, reverse=True)
         trincas = [t[0] for t in obter_top_trincas_matriz(jl, dz, top_n=5)]
         rad = calcular_ranges_adaptativos(jl) if usar_adaptativo else None
